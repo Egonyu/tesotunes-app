@@ -3,40 +3,68 @@ import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { Screen } from '../src/components/screen';
-import { apiGet, getApiBaseUrl } from '../src/services/api/client';
-import { signIn } from '../src/services/auth/session';
+import { ApiError } from '../src/services/api/client';
+import { resendVerificationEmail, signIn } from '../src/services/auth/session';
 import { colors } from '../src/theme/colors';
 
 export default function SignInScreen() {
-  const params = useLocalSearchParams<{ registered?: string; email?: string }>();
-  const [email, setEmail] = useState('');
+  const params = useLocalSearchParams<{ registered?: string; email?: string; verified?: string }>();
+  const initialEmail = params.email ?? '';
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [diagnostic, setDiagnostic] = useState<string | null>(null);
+  const [verificationPrompt, setVerificationPrompt] = useState<string | null>(null);
+  const [resendSubmitting, setResendSubmitting] = useState(false);
+  const [notice, setNotice] = useState<string | null>(
+    params.verified === '1'
+      ? 'Email verified successfully. You can sign in now.'
+      : params.registered === '1'
+        ? `Account created${params.email ? ` for ${params.email}` : ''}. Verify your email, then sign in here.`
+        : null
+  );
 
   async function handleSubmit() {
     setSubmitting(true);
     setError(null);
+    setVerificationPrompt(null);
 
     try {
       await signIn(email.trim(), password);
       router.replace('/(tabs)/library');
     } catch (submissionError) {
+      if (submissionError instanceof ApiError && submissionError.code === 'EMAIL_NOT_VERIFIED') {
+        setVerificationPrompt(submissionError.message);
+        return;
+      }
+
       setError(submissionError instanceof Error ? submissionError.message : 'Unable to sign in');
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function testApiConnection() {
-    setDiagnostic('Testing API...');
+  async function handleResendVerification() {
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      setError('Enter your email address first so we can resend the verification link.');
+      return;
+    }
+
+    setResendSubmitting(true);
+    setError(null);
 
     try {
-      const response = await apiGet<{ data?: unknown[] }>('/mobile/trending/songs');
-      setDiagnostic(`API reachable at ${getApiBaseUrl()} with ${response.data?.length ?? 0} songs returned.`);
-    } catch (connectionError) {
-      setDiagnostic(connectionError instanceof Error ? connectionError.message : 'API test failed');
+      const result = await resendVerificationEmail(normalizedEmail);
+      setNotice(result);
+      router.replace({
+        pathname: '/verify-email',
+        params: { resent: '1', email: normalizedEmail },
+      });
+    } catch (submissionError) {
+      setError(submissionError instanceof Error ? submissionError.message : 'Unable to resend verification email.');
+    } finally {
+      setResendSubmitting(false);
     }
   }
 
@@ -46,12 +74,7 @@ export default function SignInScreen() {
         <Text style={styles.eyebrow}>TesoTunes</Text>
         <Text style={styles.title}>Sign in to unlock your library and offline world.</Text>
         <Text style={styles.subtitle}>Use your existing TesoTunes account from the web platform.</Text>
-        <Text style={styles.endpoint}>API: {getApiBaseUrl()}</Text>
-        {params.registered === '1' ? (
-          <Text style={styles.success}>
-            Account created{params.email ? ` for ${params.email}` : ''}. Verify your email, then sign in here.
-          </Text>
-        ) : null}
+        {notice ? <Text style={styles.success}>{notice}</Text> : null}
       </View>
 
       <View style={styles.form}>
@@ -81,15 +104,17 @@ export default function SignInScreen() {
         </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        {diagnostic ? <Text style={styles.diagnostic}>{diagnostic}</Text> : null}
+        {verificationPrompt ? <Text style={styles.success}>{verificationPrompt}</Text> : null}
 
         <TouchableOpacity disabled={submitting} style={styles.button} activeOpacity={0.9} onPress={handleSubmit}>
           {submitting ? <ActivityIndicator color={colors.background} /> : <Text style={styles.buttonLabel}>Continue</Text>}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.secondaryButton} activeOpacity={0.85} onPress={testApiConnection}>
-          <Text style={styles.secondaryButtonLabel}>Test API Connection</Text>
-        </TouchableOpacity>
+        {verificationPrompt ? (
+          <TouchableOpacity style={styles.secondaryButton} activeOpacity={0.85} onPress={handleResendVerification} disabled={resendSubmitting}>
+            {resendSubmitting ? <ActivityIndicator color={colors.text} /> : <Text style={styles.secondaryButtonLabel}>Resend Verification Email</Text>}
+          </TouchableOpacity>
+        ) : null}
 
         <TouchableOpacity style={styles.textButton} activeOpacity={0.85} onPress={() => router.push('/sign-up')}>
           <Text style={styles.textButtonLabel}>New to TesoTunes? Create account</Text>
@@ -124,11 +149,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 15,
     lineHeight: 22,
-  },
-  endpoint: {
-    color: colors.textSubtle,
-    fontSize: 12,
-    lineHeight: 18,
   },
   form: {
     gap: 16,
@@ -173,11 +193,6 @@ const styles = StyleSheet.create({
   success: {
     color: colors.accent,
     fontSize: 13,
-    lineHeight: 18,
-  },
-  diagnostic: {
-    color: colors.textMuted,
-    fontSize: 12,
     lineHeight: 18,
   },
   secondaryButton: {

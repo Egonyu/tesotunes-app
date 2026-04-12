@@ -1,9 +1,10 @@
 import { router } from 'expo-router';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
+import { ArtworkImage } from '../../src/components/artwork-image';
 import { Screen } from '../../src/components/screen';
+import { StateMessage } from '../../src/components/state-message';
 import { useMyPlaylists } from '../../src/hooks/use-playlists';
 import { colors } from '../../src/theme/colors';
 
@@ -28,7 +29,7 @@ export default function PlaylistsScreen() {
       <ScrollView contentContainerStyle={styles.list}>
         {playlists.map((playlist) => (
           <TouchableOpacity key={playlist.id} style={styles.card} onPress={() => router.push(`/playlists/${playlist.id}`)}>
-            <LinearGradient colors={playlist.palette} style={styles.artwork} />
+            <ArtworkImage uri={playlist.artworkUrl} palette={playlist.palette} style={styles.artwork} />
             <View style={styles.meta}>
               <Text style={styles.name}>{playlist.name}</Text>
               <Text style={styles.description} numberOfLines={2}>
@@ -43,8 +44,7 @@ export default function PlaylistsScreen() {
 
         {!isLoading && playlists.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No playlists yet</Text>
-            <Text style={styles.emptyCopy}>Create your first playlist and start shaping your library.</Text>
+            <StateMessage title="No playlists yet" body="Create your first playlist and start shaping your library." />
             <TouchableOpacity style={styles.emptyButton} onPress={() => router.push('/playlists/new')}>
               <Text style={styles.emptyButtonLabel}>Create Playlist</Text>
             </TouchableOpacity>
@@ -119,16 +119,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     gap: 12,
-  },
-  emptyTitle: {
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  emptyCopy: {
-    color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 20,
   },
   emptyButton: {
     marginTop: 8,

@@ -1,0 +1,43 @@
+name: Mobile CI
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+      - 'codex/**'
+  pull_request:
+
+concurrency:
+  group: mobile-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npm run check
+
+      - name: Expo doctor
+        run: npm run doctor
+
+      - name: Expo config sanity check
+        env:
+          EXPO_PUBLIC_API_BASE_URL: https://api.tesotunes.com/api
+          EXPO_PUBLIC_APP_NAME: TesoTunes Mobile
+        run: npm run config:check

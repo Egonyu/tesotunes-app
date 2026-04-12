@@ -1,14 +1,12 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Screen } from '../../src/components/screen';
+import { StateMessage } from '../../src/components/state-message';
 import { ArtistCard, TrackRow } from '../../src/components/media';
-import { artists, featuredTracks, libraryHighlights } from '../../src/data/mock-content';
 import { useMyPlaylists } from '../../src/hooks/use-playlists';
 import { useUserLibrary } from '../../src/hooks/use-user-library';
-import { apiGet, getApiBaseUrl } from '../../src/services/api/client';
 import { signOut } from '../../src/services/auth/session';
 import { useAuthStore } from '../../src/store/auth-store';
 import { useDownloadStore } from '../../src/store/download-store';
@@ -21,24 +19,42 @@ export default function LibraryScreen() {
   const { data: playlists } = useMyPlaylists();
   const localDownloads = useDownloadStore((state) => state.downloads);
   const isAuthenticated = authStatus === 'authenticated';
-  const recentTracks = data?.recentPlays?.length ? data.recentPlays : featuredTracks.slice(0, 3);
+  const recentTracks = data?.recentPlays ?? [];
   const likedTracks = data?.likedSongs ?? [];
-  const followedArtists = data?.followedArtists?.length ? data.followedArtists : artists.slice(0, 4);
+  const followedArtists = data?.followedArtists ?? [];
   const downloadedTracks = localDownloads.filter((item) => item.status === 'completed').map((item) => item.track);
   const activeDownloads = localDownloads.filter((item) => item.status !== 'completed');
   const downloadCount = localDownloads.length || data?.counts?.downloads || 0;
-  const [diagnostic, setDiagnostic] = useState<string | null>(null);
-
-  async function testApiConnection() {
-    setDiagnostic('Testing API...');
-
-    try {
-      const response = await apiGet<{ data?: unknown[] }>('/mobile/trending/songs');
-      setDiagnostic(`API reachable at ${getApiBaseUrl()} with ${response.data?.length ?? 0} songs.`);
-    } catch (error) {
-      setDiagnostic(error instanceof Error ? error.message : 'API test failed');
-    }
-  }
+  const libraryCollections = [
+    {
+      key: 'liked-songs',
+      title: 'Liked Songs',
+      subtitle: `${likedTracks.length || data?.counts?.liked_songs || 0} saved tracks`,
+      color: '#2a2a7d',
+      href: '/library/liked-songs',
+    },
+    {
+      key: 'downloaded',
+      title: 'Downloaded',
+      subtitle: downloadCount > 0 ? `${downloadCount} songs ready offline` : 'Music for offline listening',
+      color: '#22543d',
+      href: '/library/downloaded',
+    },
+    {
+      key: 'following',
+      title: 'Following',
+      subtitle: `${data?.counts?.followed_artists || followedArtists.length || 0} artists followed`,
+      color: '#3a3a3a',
+      href: '/library/following',
+    },
+    {
+      key: 'recently-played',
+      title: 'Recently Played',
+      subtitle: recentTracks.length > 0 ? `${recentTracks.length} tracks in recent rotation` : 'Your most recent listening',
+      color: '#3a3a3a',
+      href: '/library/recently-played',
+    },
+  ];
 
   if (!isAuthenticated) {
     return (
@@ -48,17 +64,11 @@ export default function LibraryScreen() {
           <Text style={styles.guestCopy}>
             Sign in to sync liked songs, playlists, downloads, and your listening history across devices.
           </Text>
-          <Text style={styles.debugLabel}>Build marker: library-debug-v1</Text>
-          <Text style={styles.debugLabel}>API: {getApiBaseUrl()}</Text>
-          {diagnostic ? <Text style={styles.debugLabel}>{diagnostic}</Text> : null}
           <TouchableOpacity style={styles.primaryButton} activeOpacity={0.9} onPress={() => router.push('/sign-in')}>
             <Text style={styles.primaryButtonLabel}>Sign In</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.secondaryButton} activeOpacity={0.85} onPress={() => router.push('/sign-up')}>
             <Text style={styles.secondaryButtonLabel}>Create Account</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryButton} activeOpacity={0.85} onPress={testApiConnection}>
-            <Text style={styles.secondaryButtonLabel}>Test API Connection</Text>
           </TouchableOpacity>
         </View>
       </Screen>
@@ -80,8 +90,8 @@ export default function LibraryScreen() {
       <View style={styles.chips}>
         {[
           { label: 'Playlists', action: () => router.push('/playlists') },
-          { label: `Downloads ${downloadCount > 0 ? `(${downloadCount})` : ''}`.trim() },
-          { label: `Artists ${followedArtists.length > 0 ? `(${followedArtists.length})` : ''}`.trim() },
+          { label: `Downloads ${downloadCount > 0 ? `(${downloadCount})` : ''}`.trim(), action: () => router.push('/library/downloaded') },
+          { label: `Artists ${followedArtists.length > 0 ? `(${followedArtists.length})` : ''}`.trim(), action: () => router.push('/library/following') },
         ].map((item) => (
           <TouchableOpacity key={item.label} style={styles.chip} activeOpacity={0.85} onPress={item.action}>
             <Text style={styles.chipLabel}>{item.label}</Text>
@@ -90,28 +100,19 @@ export default function LibraryScreen() {
       </View>
 
       <View style={styles.collection}>
-        {libraryHighlights.map((item, index) => (
+        {libraryCollections.map((item) => (
           <TouchableOpacity
-            key={item}
+            key={item.key}
             activeOpacity={0.85}
             style={styles.collectionRow}
-            onPress={item === 'Liked Songs' ? undefined : item === 'Downloaded' ? undefined : item === 'Following' ? undefined : undefined}
+            onPress={() => router.push(item.href as never)}
           >
-            <View style={[styles.collectionArt, { backgroundColor: index === 0 ? '#2a2a7d' : '#2b2b2b' }]} />
+            <View style={[styles.collectionArt, { backgroundColor: item.color }]} />
             <View style={styles.collectionMeta}>
-              <Text style={styles.collectionTitle}>{item}</Text>
-              <Text style={styles.collectionSubtitle}>
-                {item === 'Liked Songs'
-                  ? `${likedTracks.length || data?.counts?.liked_songs || 0} saved tracks`
-                  : item === 'Downloaded'
-                    ? 'Music for offline listening'
-                    : item === 'Following'
-                      ? `${data?.counts?.followed_artists || 0} artists followed`
-                      : item === 'Recently Played'
-                        ? 'Your most recent listening'
-                        : 'Playlist • TesoTunes'}
-              </Text>
+              <Text style={styles.collectionTitle}>{item.title}</Text>
+              <Text style={styles.collectionSubtitle}>{item.subtitle}</Text>
             </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
           </TouchableOpacity>
         ))}
       </View>
@@ -119,7 +120,9 @@ export default function LibraryScreen() {
       <View style={styles.trackBlock}>
         <View style={styles.blockHeader}>
           <Text style={styles.blockTitle}>Following</Text>
-          <Text style={styles.linkLabel}>{data?.counts?.followed_artists ?? followedArtists.length} artists</Text>
+          <TouchableOpacity onPress={() => router.push('/library/following')}>
+            <Text style={styles.linkLabel}>{data?.counts?.followed_artists ?? followedArtists.length} artists</Text>
+          </TouchableOpacity>
         </View>
         {followedArtists.length === 0 ? (
           <Text style={styles.emptyText}>Artists you follow will appear here for quick access.</Text>
@@ -150,30 +153,47 @@ export default function LibraryScreen() {
             </View>
           </TouchableOpacity>
         ))}
-        {!playlists?.length ? <Text style={styles.emptyText}>Create playlists to organize your music and mixes.</Text> : null}
+        {!playlists?.length ? (
+          <StateMessage compact title="No playlists yet" body="Create playlists to organize your music, mixes, and offline listening flow." />
+        ) : null}
       </View>
 
       <View style={styles.trackBlock}>
-        <Text style={styles.blockTitle}>Liked Songs</Text>
+        <View style={styles.blockHeader}>
+          <Text style={styles.blockTitle}>Liked Songs</Text>
+          {likedTracks.length ? (
+            <TouchableOpacity onPress={() => router.push('/library/liked-songs')}>
+              <Text style={styles.linkLabel}>View all</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
         {likedTracks.length === 0 ? (
-          <Text style={styles.emptyText}>Songs you like will appear here.</Text>
+          <StateMessage compact title="No liked songs yet" body="Songs you like will appear here and stay synced with your account." />
         ) : (
           likedTracks.slice(0, 5).map((track) => <TrackRow key={`liked-${track.id}`} track={track} queue={likedTracks} />)
         )}
       </View>
 
       <View style={styles.trackBlock}>
-        <Text style={styles.blockTitle}>{isLoading ? 'Loading your library' : 'Recently played'}</Text>
+        <View style={styles.blockHeader}>
+          <Text style={styles.blockTitle}>{isLoading ? 'Loading your library' : 'Recently played'}</Text>
+          {recentTracks.length ? (
+            <TouchableOpacity onPress={() => router.push('/library/recently-played')}>
+              <Text style={styles.linkLabel}>View all</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
         {isLoading ? <ActivityIndicator color={colors.accent} /> : null}
-        {recentTracks.map((track) => (
-          <TrackRow key={track.id} track={track} queue={recentTracks} />
-        ))}
+        {recentTracks.length === 0 && !isLoading ? (
+          <StateMessage compact title="No recent plays yet" body="Your recent listening will appear here once you start playing songs." />
+        ) : null}
+        {recentTracks.map((track) => <TrackRow key={track.id} track={track} queue={recentTracks} />)}
       </View>
 
       <View style={styles.trackBlock}>
         <Text style={styles.blockTitle}>Download activity</Text>
         {activeDownloads.length === 0 ? (
-          <Text style={styles.emptyText}>Paused, failed, and in-progress downloads will appear here.</Text>
+          <StateMessage compact title="No active downloads" body="Paused, failed, and in-progress downloads will appear here while your library syncs." />
         ) : (
           activeDownloads.map((item) => (
             <View key={`active-download-${item.id}`} style={styles.downloadActivityRow}>
@@ -193,9 +213,16 @@ export default function LibraryScreen() {
       </View>
 
       <View style={styles.trackBlock}>
-        <Text style={styles.blockTitle}>Downloaded</Text>
+        <View style={styles.blockHeader}>
+          <Text style={styles.blockTitle}>Downloaded</Text>
+          {downloadedTracks.length ? (
+            <TouchableOpacity onPress={() => router.push('/library/downloaded')}>
+              <Text style={styles.linkLabel}>View all</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
         {downloadedTracks.length === 0 ? (
-          <Text style={styles.emptyText}>Songs you download for offline playback will appear here.</Text>
+          <StateMessage compact title="No offline songs yet" body="Songs you download for offline playback will appear here." />
         ) : (
           downloadedTracks.map((track) => <TrackRow key={`download-${track.id}`} track={track} queue={downloadedTracks} />)
         )}
@@ -334,10 +361,5 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
     fontWeight: '700',
-  },
-  debugLabel: {
-    color: colors.textSubtle,
-    fontSize: 12,
-    lineHeight: 18,
   },
 });

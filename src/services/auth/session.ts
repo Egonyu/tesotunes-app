@@ -34,6 +34,14 @@ type RegisterResponse = {
   };
 };
 
+type VerificationResendResponse = {
+  message?: string;
+};
+
+type VerificationCompleteResponse = {
+  message?: string;
+};
+
 function normalizeUser(input?: UserResponse['data'] | UserResponse | null): AuthUser {
   return {
     id: String(input?.id ?? ''),
@@ -123,4 +131,31 @@ export async function signOut() {
 
   await clearAuthToken();
   useAuthStore.getState().clearSession();
+}
+
+export async function resendVerificationEmail(email: string) {
+  const response = await apiPost<VerificationResendResponse, { email: string }>('/auth/email/resend', {
+    email,
+  });
+
+  return response.message || 'If your account still requires verification, we have sent a fresh verification email.';
+}
+
+export async function verifyEmailLink(input: {
+  id: number;
+  hash: string;
+  expires: number;
+  signature: string;
+}) {
+  const response = await apiPost<
+    VerificationCompleteResponse,
+    {
+      id: number;
+      hash: string;
+      expires: number;
+      signature: string;
+    }
+  >('/auth/email/verify', input);
+
+  return response.message || 'Email verified successfully.';
 }

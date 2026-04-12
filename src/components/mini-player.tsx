@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlayerControls } from '../hooks/use-player-queue';
 import { colors } from '../theme/colors';
 import { usePlayerStore } from '../store/player-store';
+import { ArtworkImage } from './artwork-image';
 
 export function MiniPlayer() {
   const insets = useSafeAreaInsets();
@@ -24,7 +25,7 @@ export function MiniPlayer() {
     <View pointerEvents="box-none" style={[styles.wrapper, { bottom: insets.bottom + 62 }]}>
       <Pressable onPress={() => router.push('/player')}>
         <BlurView intensity={28} tint="dark" style={styles.playerShell}>
-          <LinearGradient colors={currentTrack.palette} style={styles.artwork} />
+          <ArtworkImage uri={currentTrack.artworkUrl} palette={currentTrack.palette} style={styles.artwork} />
           <View style={styles.meta}>
             <Text style={styles.title} numberOfLines={1}>
               {currentTrack.title}

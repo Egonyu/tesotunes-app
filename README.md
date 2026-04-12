@@ -94,6 +94,7 @@ Current mobile implementation status:
 
 - `docs/MVP_SCOPE_AND_ROADMAP.md`
 - `docs/API_ALIGNMENT.md`
+- `docs/NATIVE_PLAYBACK_VERIFICATION.md`
 
 ## Environment
 
@@ -164,3 +165,17 @@ Background playback and lock-screen controls now have app-side wiring, but they 
 - Expo Go is not the final authority for background media behavior
 - use an Android or iOS dev build after adding the `expo-audio` config plugin
 - rebuild the app after changes to `app.json` so the foreground service and background audio settings are applied
+- run the checklist in `docs/NATIVE_PLAYBACK_VERIFICATION.md` on the installed dev build
+
+## Email Verification Deep Link
+
+The mobile app can now complete verification if it opens on the route:
+
+```text
+tesotunes://verify-email?id=...&hash=...&expires=...&signature=...
+```
+
+Current limitation:
+
+- the app-side flow is implemented
+- the email or web handoff still needs to target the mobile scheme for users to land directly in the app

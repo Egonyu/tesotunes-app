@@ -3,14 +3,14 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { Screen } from '../../../src/components/screen';
-import { findPlaylistById } from '../../../src/data/mock-content';
+import { StateMessage } from '../../../src/components/state-message';
 import { useDeletePlaylist, usePlaylistDetail, useUpdatePlaylist } from '../../../src/hooks/use-playlists';
 import { colors } from '../../../src/theme/colors';
 
 export default function EditPlaylistScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, isLoading } = usePlaylistDetail(id);
-  const playlist = data ?? findPlaylistById(id);
+  const playlist = data ?? null;
   const updatePlaylist = useUpdatePlaylist(id);
   const deletePlaylist = useDeletePlaylist();
   const [name, setName] = useState('');
@@ -66,10 +66,20 @@ export default function EditPlaylistScreen() {
     ]);
   }
 
+  if (isLoading && !playlist) {
+    return (
+      <Screen>
+        <View style={styles.centeredState}>
+          <ActivityIndicator color={colors.accent} />
+        </View>
+      </Screen>
+    );
+  }
+
   if (!playlist && !isLoading) {
     return (
       <Screen>
-        <Text style={styles.empty}>Playlist not found.</Text>
+        <StateMessage title="Playlist not found" body="This playlist could not be loaded from your library. It may have been removed or you may no longer have access to edit it." />
       </Screen>
     );
   }
@@ -124,7 +134,7 @@ export default function EditPlaylistScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <TouchableOpacity
-          disabled={updatePlaylist.isPending}
+          disabled={updatePlaylist.isPending || isLoading}
           style={styles.button}
           activeOpacity={0.9}
           onPress={handleSave}
@@ -137,7 +147,7 @@ export default function EditPlaylistScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          disabled={deletePlaylist.isPending}
+          disabled={deletePlaylist.isPending || isLoading}
           style={styles.secondaryButton}
           activeOpacity={0.85}
           onPress={handleDelete}
@@ -254,5 +264,10 @@ const styles = StyleSheet.create({
   empty: {
     color: colors.text,
     fontSize: 16,
+  },
+  centeredState: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '100%',
   },
 });

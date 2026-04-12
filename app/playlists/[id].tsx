@@ -4,9 +4,10 @@ import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
+import { ArtworkImage } from '../../src/components/artwork-image';
 import { Screen } from '../../src/components/screen';
+import { StateMessage } from '../../src/components/state-message';
 import { TrackRow } from '../../src/components/media';
-import { findPlaylistById } from '../../src/data/mock-content';
 import { usePlaylistDetail, useRemoveTrackFromPlaylist, useReorderPlaylistTracks } from '../../src/hooks/use-playlists';
 import { colors } from '../../src/theme/colors';
 import { Track } from '../../src/types/music';
@@ -14,7 +15,7 @@ import { Track } from '../../src/types/music';
 export default function PlaylistDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, isLoading } = usePlaylistDetail(id);
-  const playlist = data ?? findPlaylistById(id);
+  const playlist = data;
   const [displayTracks, setDisplayTracks] = useState<Track[]>([]);
   const [playlistActionError, setPlaylistActionError] = useState<string | null>(null);
   const removeTrack = useRemoveTrackFromPlaylist(id);
@@ -27,7 +28,7 @@ export default function PlaylistDetailScreen() {
   if (!playlist && !isLoading) {
     return (
       <Screen>
-        <Text style={styles.empty}>Playlist not found.</Text>
+        <StateMessage title="Playlist not found" body="We couldn't find this playlist. It may have been removed or is no longer available to your account." />
       </Screen>
     );
   }
@@ -96,7 +97,7 @@ export default function PlaylistDetailScreen() {
       {playlist ? (
         <>
           <LinearGradient colors={[playlist.palette[0], '#121212', '#090909']} style={styles.header}>
-            <LinearGradient colors={playlist.palette} style={styles.coverArt} />
+            <ArtworkImage uri={playlist.artworkUrl} palette={playlist.palette} style={styles.coverArt} />
             <Text style={styles.title}>{playlist.name}</Text>
             <Text style={styles.description}>{playlist.description}</Text>
             <Text style={styles.meta}>
@@ -159,7 +160,7 @@ export default function PlaylistDetailScreen() {
                 </View>
               ))
             ) : (
-              <Text style={styles.empty}>Songs added to this playlist will appear here.</Text>
+              <StateMessage compact title="No songs in this playlist yet" body="Add songs to this playlist and they will appear here instantly." />
             )}
           </View>
         </>
@@ -246,9 +247,5 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontSize: 13,
     lineHeight: 18,
-  },
-  empty: {
-    color: colors.text,
-    fontSize: 16,
   },
 });

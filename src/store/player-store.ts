@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 
-import { featuredTracks } from '../data/mock-content';
 import { Track } from '../types/music';
 
 type PlayerState = {
@@ -37,9 +36,9 @@ function previousIndex(queue: Track[], currentTrack: Track | null) {
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
-  currentTrack: featuredTracks[0],
-  queue: featuredTracks,
-  isPlaying: true,
+  currentTrack: null,
+  queue: [],
+  isPlaying: false,
   currentTime: 0,
   durationSeconds: 0,
   isBuffering: false,

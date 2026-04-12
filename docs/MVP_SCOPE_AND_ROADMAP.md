@@ -184,33 +184,46 @@ Success condition:
 
 ## Current Status Board
 
-### Completed now
+### Real
 
-- Expo Router app shell with Spotify-style navigation and dark visual direction
-- home, search, library, events, album, artist, sign-in, mini-player, and full player screens
-- auth bootstrap with secure token storage
-- sign-up flow with redirect back to sign-in after registration
-- authenticated library loading
-- liked songs toggles and liked songs surfacing in Library
-- playlist list, create, detail, edit, delete, reorder, remove-track, and add-to-playlist flow
-- artist detail follow toggle and followed artists surfacing in Library
-- backend queue sync plus add-to-queue
-- next, previous, play/pause, progress sync, seek sync, and qualified play recording
-- `expo-audio` playback engine integration
-- background playback mode and lock-screen metadata activation groundwork
-- download URL handling, device file download, and local download registry
-- offline-preferred playback for downloaded songs
-- queued offline like and follow actions with reconnect sync flush
-- queued offline play-history with reconnect sync flush
-- resumable pause/resume/retry download flow with persisted state
+- Auth and session: secure token bootstrap, sign-in, sign-up handoff, session restore
+- Playback core: real `expo-audio` playback, seek/progress sync, queue sync, qualified play recording
+- Playlists: list, create, detail, edit, delete, reorder, remove-track, add-to-playlist
+- Downloads and offline: secure download URLs, local registry, offline-preferred playback, queued sync for likes, follows, and play history
+- Library foundations: authenticated liked songs, followed artists, recent plays, downloads, playlists, and library collection rails driven by live user data
+- Discovery data foundations: live home songs, artists, albums, dedicated artists browse, dedicated albums browse, featured chart detail, dedicated charts browse, genre browse, dedicated genres browse, song search, genre detail, album detail
+
+### Hybrid
+
+- Home and discovery: featured charts and chart detail are wired, but production currently returns an empty charts dataset so the UI now falls back to explicit, actionable empty states and alternate discovery entry points; artist and album browse now also fall back to stable public catalog endpoints when mobile convenience endpoints fail
+- Search: live songs, genres, albums, artists, and playlists are wired, browse surfaces now include dedicated charts and genres routes, and grouped search states now render explicit section counts and empty states instead of silently collapsing, but non-song search groups may still be empty until more public catalog data is available
+- Artist detail: live artist stats, songs, and albums are wired; remaining richness still depends on catalog completeness from the public API
+- Library experience: real data is primary, and core music collections now deep-link into focused library subsections; some overview labels still remain static presentation copy
+- Build and release: dev build path exists and GitHub Actions now cover install, TypeScript, Expo doctor, and config validation; stronger native verification is still pending
+- Player queue UX: full player now supports live shuffle, clear, remove, manual up/down queue ordering, and play-now promotion from the upcoming queue, but we still need native on-device verification of the overall playback experience
+- Background playback groundwork: the Expo audio provider now keeps the audio session active during background transitions instead of deactivating it, live track metadata now maps the backend's top-level artist field correctly for player and notification display, and the remaining work is device verification of lock-screen and foreground-service behavior
+- Email verification handling: mobile auth now recognizes unverified-email login responses, routes new signups into a verification screen, supports resend from the app, can complete verification when opened on the signed `tesotunes://verify-email` callback, and the web verification page now attempts native app handoff before falling back to browser verification
+
+### Template/Mock
+
+- Events module beyond listing
+- Queue UX polish inside the full player beyond the current play-now and ordering controls
+- Background download execution
+- Lock-screen controls and full native background playback verification
 
 ### Active next targets
 
-- richer queue management UX inside the player
+- native verification of the upgraded queue management UX inside the player
 - robust mobile HTTPS backend exposure for phone testing
-- email verification handling beyond sign-up handoff
-- background playback and lock-screen controls
+- lock-screen controls and native background playback verification
 - true background download execution
+- optional EAS-trigger automation once the base mobile CI signal is stable
+- richer playback polish on a real Android dev build
+
+Native verification reference:
+
+- `docs/NATIVE_PLAYBACK_VERIFICATION.md`
+- `docs/ANDROID_DEV_BUILD_GUIDE.md`
 
 ### Remaining MVP gaps
 

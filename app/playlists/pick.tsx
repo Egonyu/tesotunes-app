@@ -1,8 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 
+import { ArtworkImage } from '../../src/components/artwork-image';
 import { Screen } from '../../src/components/screen';
+import { StateMessage } from '../../src/components/state-message';
 import { useAddTrackToPlaylist, useMyPlaylists } from '../../src/hooks/use-playlists';
 import { colors } from '../../src/theme/colors';
 
@@ -49,7 +50,7 @@ export default function PlaylistPickerScreen() {
 
         {playlists.map((playlist) => (
           <TouchableOpacity key={playlist.id} style={styles.card} onPress={() => void handleAdd(playlist.id)}>
-            <LinearGradient colors={playlist.palette} style={styles.artwork} />
+            <ArtworkImage uri={playlist.artworkUrl} palette={playlist.palette} style={styles.artwork} />
             <View style={styles.meta}>
               <Text style={styles.name}>{playlist.name}</Text>
               <Text style={styles.description} numberOfLines={2}>
@@ -60,7 +61,7 @@ export default function PlaylistPickerScreen() {
         ))}
 
         {!isLoading && playlists.length === 0 ? (
-          <Text style={styles.emptyText}>Create a playlist first, then come back to save this track.</Text>
+          <StateMessage compact title="No playlists yet" body="Create a playlist first, then come back to save this track." />
         ) : null}
 
         {addTrackToPlaylist.error ? <Text style={styles.error}>{addTrackToPlaylist.error.message}</Text> : null}
@@ -133,11 +134,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13,
     lineHeight: 18,
-  },
-  emptyText: {
-    color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 20,
   },
   error: {
     color: colors.danger,

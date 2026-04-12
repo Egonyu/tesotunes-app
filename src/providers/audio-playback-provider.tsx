@@ -12,7 +12,7 @@ function formatPlaybackKey(id?: string, uri?: string | null) {
   return `${id ?? 'none'}:${uri ?? 'no-uri'}`;
 }
 
-function buildLockScreenMetadata(track?: { title: string; artist: string; artworkUrl?: string | null }) {
+function buildLockScreenMetadata(track?: { title: string; artist: string; albumTitle?: string; artworkUrl?: string | null }) {
   if (!track) {
     return undefined;
   }
@@ -20,6 +20,7 @@ function buildLockScreenMetadata(track?: { title: string; artist: string; artwor
   return {
     title: track.title,
     artist: track.artist,
+    albumTitle: track.albumTitle ?? undefined,
     artworkUrl: track.artworkUrl ?? undefined,
   };
 }
@@ -56,9 +57,11 @@ export function AudioPlaybackProvider({ children }: PropsWithChildren) {
     });
 
     const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
-      void setIsAudioActiveAsync(nextState === 'active').catch(() => {
-        // Ignore foreground/background audio activation failures.
-      });
+      if (nextState === 'active') {
+        void setIsAudioActiveAsync(true).catch(() => {
+          // Ignore activation failures and let the player continue with native defaults.
+        });
+      }
     });
 
     const player = playerRef.current;
@@ -116,6 +119,9 @@ export function AudioPlaybackProvider({ children }: PropsWithChildren) {
     }
 
     resolvingTrackRef.current = null;
+    void setIsAudioActiveAsync(true).catch(() => {
+      // Ignore activation failures so playback can continue where supported.
+    });
 
     if (metadata) {
       player.setActiveForLockScreen(true, metadata, {
@@ -142,5 +148,5 @@ export function AudioPlaybackProvider({ children }: PropsWithChildren) {
     }
   }, [currentTrack, isPlaying, playbackKey, setCurrentTrack, setPlaybackError, setPlaybackStatus, token]);
 
-    return children;
+  return children;
 }

@@ -37,8 +37,8 @@ export default function SignUpScreen() {
       setSuccess(result.message);
 
       router.replace({
-        pathname: '/sign-in',
-        params: { registered: '1', email: result.user.email },
+        pathname: '/verify-email',
+        params: { sent: '1', email: result.user.email },
       });
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : 'Unable to create your account');

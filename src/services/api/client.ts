@@ -9,8 +9,21 @@ type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 type ApiErrorPayload = {
   message?: string;
   error?: string;
+  code?: string;
   errors?: Record<string, string[]>;
 };
+
+export class ApiError extends Error {
+  code?: string;
+  status?: number;
+
+  constructor(message: string, options?: { code?: string; status?: number }) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = options?.code;
+    this.status = options?.status;
+  }
+}
 
 async function buildApiError(response: Response) {
   const fallbackMessage = `API request failed with status ${response.status}`;
@@ -22,22 +35,22 @@ async function buildApiError(response: Response) {
       const firstError = Object.values(payload.errors).flat()[0];
 
       if (firstError) {
-        return new Error(firstError);
+        return new ApiError(firstError, { code: payload.code, status: response.status });
       }
     }
 
     if (payload.message) {
-      return new Error(payload.message);
+      return new ApiError(payload.message, { code: payload.code, status: response.status });
     }
 
     if (payload.error) {
-      return new Error(payload.error);
+      return new ApiError(payload.error, { code: payload.code, status: response.status });
     }
   } catch {
     // Fall through to status-based error when the server does not return JSON.
   }
 
-  return new Error(fallbackMessage);
+  return new ApiError(fallbackMessage, { status: response.status });
 }
 
 async function request<T>(method: HttpMethod, path: string, token?: string, body?: unknown): Promise<T> {

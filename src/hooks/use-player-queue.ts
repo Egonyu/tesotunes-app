@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 
 import { seekActivePlayerTo } from '../providers/audio-playback-provider';
-import { apiGet, apiPost } from '../services/api/client';
+import { apiDelete, apiGet, apiPost, apiPut } from '../services/api/client';
 import { ensureRemotePlaybackTrack } from '../services/api/playback';
 import { resolveQueuePlayback, resolveTrackPlayback } from '../services/downloads/playback';
 import { enqueuePlayHistoryItem } from '../services/sync/play-history-queue';
@@ -17,6 +17,8 @@ type QueueResponse = {
   data?: {
     queue?: QueueItem[];
     current_playing?: QueueItem | null;
+    total_duration_seconds?: number;
+    remaining_duration_seconds?: number;
   };
 };
 
@@ -60,6 +62,9 @@ export function usePlayerQueueSync() {
         queue: resolvedQueue,
         currentTrack: resolvedCurrentTrack,
         isPlaying: statusResponse.data?.is_playing ?? false,
+        queueItems: resolvedQueue,
+        totalDurationSeconds: queueResponse.data?.total_duration_seconds ?? 0,
+        remainingDurationSeconds: queueResponse.data?.remaining_duration_seconds ?? 0,
       };
     },
     enabled: isAuthenticated && !!token,
@@ -92,6 +97,63 @@ export function useAddToQueue() {
       queryClient.invalidateQueries({ queryKey: ['player-queue'] });
     },
   });
+}
+
+export function useQueueManagement() {
+  const token = useAuthStore((state) => state.token);
+  const isAuthenticated = useAuthStore((state) => state.status === 'authenticated');
+  const queryClient = useQueryClient();
+
+  function requireSession() {
+    if (!isAuthenticated || !token) {
+      throw new Error('Please sign in to manage your queue.');
+    }
+  }
+
+  const invalidateQueue = () => {
+    queryClient.invalidateQueries({ queryKey: ['player-queue'] });
+  };
+
+  const clearQueue = useMutation({
+    mutationFn: async () => {
+      requireSession();
+      return apiDelete('/player/queue', token!);
+    },
+    onSuccess: invalidateQueue,
+  });
+
+  const shuffleQueue = useMutation({
+    mutationFn: async () => {
+      requireSession();
+      return apiPost('/player/queue/shuffle', {}, token!);
+    },
+    onSuccess: invalidateQueue,
+  });
+
+  const removeFromQueue = useMutation({
+    mutationFn: async (queueItemId: number) => {
+      requireSession();
+      return apiDelete(`/player/queue/${queueItemId}`, token!);
+    },
+    onSuccess: invalidateQueue,
+  });
+
+  const reorderQueue = useMutation({
+    mutationFn: async (queueItems: Array<{ id: number; position: number }>) => {
+      requireSession();
+      return apiPut('/player/queue/reorder', { queue_items: queueItems }, token!);
+    },
+    onSuccess: invalidateQueue,
+  });
+
+  return {
+    clearQueue,
+    shuffleQueue,
+    removeFromQueue,
+    reorderQueue,
+    queueActionLoading:
+      clearQueue.isPending || shuffleQueue.isPending || removeFromQueue.isPending || reorderQueue.isPending,
+  };
 }
 
 export function usePlayerControls() {

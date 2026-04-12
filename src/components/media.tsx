@@ -9,22 +9,39 @@ import { useAddToQueue } from '../hooks/use-player-queue';
 import { resolveQueuePlayback, resolveTrackPlayback } from '../services/downloads/playback';
 import { useAuthStore } from '../store/auth-store';
 import { useDownloadStore } from '../store/download-store';
-import { Album, Artist, EventItem, Track } from '../types/music';
+import { Album, Artist, Chart, EventItem, Genre, Track } from '../types/music';
 import { colors } from '../theme/colors';
 import { usePlayerStore } from '../store/player-store';
+import { ArtworkImage } from './artwork-image';
 
-export function SectionHeader({ title, action }: { title: string; action?: string }) {
+export function SectionHeader({
+  title,
+  action,
+  onActionPress,
+}: {
+  title: string;
+  action?: string;
+  onActionPress?: () => void;
+}) {
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      {action ? <Text style={styles.sectionAction}>{action}</Text> : null}
+      {action ? (
+        onActionPress ? (
+          <TouchableOpacity onPress={onActionPress} hitSlop={10}>
+            <Text style={styles.sectionAction}>{action}</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.sectionAction}>{action}</Text>
+        )
+      ) : null}
     </View>
   );
 }
 
-export function MixTile({ label }: { label: string }) {
+export function MixTile({ label, onPress }: { label: string; onPress?: () => void }) {
   return (
-    <TouchableOpacity activeOpacity={0.85} style={styles.mixTile}>
+    <TouchableOpacity activeOpacity={0.85} style={styles.mixTile} onPress={onPress}>
       <View style={styles.mixThumb} />
       <Text style={styles.mixLabel}>{label}</Text>
     </TouchableOpacity>
@@ -34,7 +51,7 @@ export function MixTile({ label }: { label: string }) {
 export function AlbumCard({ album }: { album: Album }) {
   return (
     <TouchableOpacity activeOpacity={0.85} style={styles.card} onPress={() => router.push(`/album/${album.id}`)}>
-      <LinearGradient colors={album.palette} style={styles.coverArt} />
+      <ArtworkImage uri={album.artworkUrl} palette={album.palette} style={styles.coverArt} />
       <Text style={styles.cardTitle} numberOfLines={2}>
         {album.title}
       </Text>
@@ -48,7 +65,7 @@ export function AlbumCard({ album }: { album: Album }) {
 export function ArtistCard({ artist }: { artist: Artist }) {
   return (
     <TouchableOpacity activeOpacity={0.85} style={styles.card} onPress={() => router.push(`/artist/${artist.id}`)}>
-      <LinearGradient colors={artist.palette} style={styles.artistArt} />
+      <ArtworkImage uri={artist.artworkUrl} palette={artist.palette} style={styles.artistArt} />
       <Text style={styles.cardTitle} numberOfLines={1}>
         {artist.name}
       </Text>
@@ -123,7 +140,7 @@ export function TrackRow({ track, queue }: { track: Track; queue: Track[] }) {
 
   return (
     <TouchableOpacity activeOpacity={0.9} style={styles.trackRow} onPress={() => playTrack(resolvedTrack, resolvedQueue)}>
-      <LinearGradient colors={track.palette} style={styles.trackArt} />
+      <ArtworkImage uri={track.artworkUrl} palette={track.palette} style={styles.trackArt} />
       <View style={styles.trackMeta}>
         <Text style={styles.trackTitle} numberOfLines={1}>
           {track.title}
@@ -189,13 +206,42 @@ export function TrackRow({ track, queue }: { track: Track; queue: Track[] }) {
   );
 }
 
-export function SearchTile({ label, palette }: { label: string; palette: [string, string] }) {
+export function SearchTile({
+  label,
+  palette,
+  subtitle,
+  onPress,
+}: {
+  label: string;
+  palette: [string, string];
+  subtitle?: string;
+  onPress?: () => void;
+}) {
   return (
-    <TouchableOpacity activeOpacity={0.85} style={styles.searchTile}>
+    <TouchableOpacity activeOpacity={0.85} style={styles.searchTile} onPress={onPress}>
       <LinearGradient colors={palette} style={StyleSheet.absoluteFillObject} />
       <Text style={styles.searchLabel}>{label}</Text>
+      {subtitle ? <Text style={styles.searchSubtitle}>{subtitle}</Text> : null}
     </TouchableOpacity>
   );
+}
+
+export function ChartCard({ chart, onPress }: { chart: Chart; onPress?: () => void }) {
+  return (
+    <TouchableOpacity activeOpacity={0.85} style={styles.card} onPress={onPress}>
+      <ArtworkImage uri={chart.artworkUrl} palette={chart.palette} style={styles.coverArt} />
+      <Text style={styles.cardTitle} numberOfLines={2}>
+        {chart.title}
+      </Text>
+      <Text style={styles.cardMeta} numberOfLines={2}>
+        {chart.genre} • {chart.totalPlays}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+export function GenreCard({ genre, onPress }: { genre: Genre; onPress?: () => void }) {
+  return <SearchTile label={genre.name} subtitle={`${genre.songCount} songs`} palette={genre.palette} onPress={onPress} />;
 }
 
 export function EventCard({ event }: { event: EventItem }) {
@@ -338,6 +384,12 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 20,
     fontWeight: '800',
+  },
+  searchSubtitle: {
+    color: 'rgba(255,255,255,0.84)',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
   },
   eventCard: {
     width: 220,
