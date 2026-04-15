@@ -90,6 +90,35 @@ export async function signIn(email: string, password: string): Promise<AuthPaylo
   return payload;
 }
 
+export async function signInWithSocial(provider: 'google' | 'facebook', input: {
+  accessToken?: string;
+  idToken?: string;
+  deviceName?: string;
+  platform?: 'ios' | 'android' | 'web';
+}): Promise<AuthPayload> {
+  const response = await apiPost<AuthResponse, {
+    access_token?: string;
+    id_token?: string;
+    device_name: string;
+    platform: 'ios' | 'android' | 'web';
+  }>(`/auth/social/${provider}/exchange`, {
+    access_token: input.accessToken,
+    id_token: input.idToken,
+    device_name: input.deviceName ?? 'expo_social',
+    platform: input.platform ?? 'web',
+  });
+
+  const payload = {
+    token: response.token,
+    user: normalizeUser(response.data),
+  };
+
+  await saveAuthToken(payload.token);
+  useAuthStore.getState().setSession(payload);
+
+  return payload;
+}
+
 export async function signUp(input: {
   name: string;
   email: string;

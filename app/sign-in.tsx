@@ -1,11 +1,15 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { Screen } from '../src/components/screen';
 import { ApiError } from '../src/services/api/client';
-import { resendVerificationEmail, signIn } from '../src/services/auth/session';
+import { resendVerificationEmail, signIn, signInWithSocial } from '../src/services/auth/session';
 import { colors } from '../src/theme/colors';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function SignInScreen() {
   const params = useLocalSearchParams<{ registered?: string; email?: string; verified?: string }>();
@@ -16,6 +20,7 @@ export default function SignInScreen() {
   const [error, setError] = useState<string | null>(null);
   const [verificationPrompt, setVerificationPrompt] = useState<string | null>(null);
   const [resendSubmitting, setResendSubmitting] = useState(false);
+  const [socialSubmitting, setSocialSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(
     params.verified === '1'
       ? 'Email verified successfully. You can sign in now.'
@@ -23,6 +28,52 @@ export default function SignInScreen() {
         ? `Account created${params.email ? ` for ${params.email}` : ''}. Verify your email, then sign in here.`
         : null
   );
+
+  const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    scopes: ['openid', 'profile', 'email'],
+  });
+
+  const googleEnabled = Boolean(
+    process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ||
+      process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ||
+      process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
+  );
+
+  useEffect(() => {
+    if (googleResponse?.type !== 'success') {
+      return;
+    }
+
+    const accessToken = googleResponse.authentication?.accessToken;
+    const idToken = googleResponse.authentication?.idToken;
+    if (!accessToken && !idToken) {
+      setError('Google sign-in did not return an authentication token.');
+      return;
+    }
+
+    setSocialSubmitting(true);
+    setError(null);
+    setVerificationPrompt(null);
+
+    void signInWithSocial('google', {
+      accessToken,
+      idToken,
+      deviceName: 'expo_google',
+      platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web',
+    })
+      .then(() => {
+        router.replace('/(tabs)/library');
+      })
+      .catch((submissionError) => {
+        setError(submissionError instanceof Error ? submissionError.message : 'Unable to complete Google sign in');
+      })
+      .finally(() => {
+        setSocialSubmitting(false);
+      });
+  }, [googleResponse]);
 
   async function handleSubmit() {
     setSubmitting(true);
@@ -68,6 +119,17 @@ export default function SignInScreen() {
     }
   }
 
+  async function handleGoogleSignIn() {
+    if (!googleEnabled) {
+      setError('Google sign-in is not configured on this build.');
+      return;
+    }
+
+    setError(null);
+    setVerificationPrompt(null);
+    await googlePromptAsync();
+  }
+
   return (
     <Screen contentContainerStyle={styles.screen}>
       <View style={styles.hero}>
@@ -108,6 +170,19 @@ export default function SignInScreen() {
 
         <TouchableOpacity disabled={submitting} style={styles.button} activeOpacity={0.9} onPress={handleSubmit}>
           {submitting ? <ActivityIndicator color={colors.background} /> : <Text style={styles.buttonLabel}>Continue</Text>}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          activeOpacity={0.85}
+          onPress={() => void handleGoogleSignIn()}
+          disabled={!googleEnabled || socialSubmitting || !googleRequest}
+        >
+          {socialSubmitting ? (
+            <ActivityIndicator color={colors.text} />
+          ) : (
+            <Text style={styles.secondaryButtonLabel}>Continue with Google</Text>
+          )}
         </TouchableOpacity>
 
         {verificationPrompt ? (
