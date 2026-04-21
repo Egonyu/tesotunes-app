@@ -1,7 +1,8 @@
 import { useMutation } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
-import { apiGet } from '../services/api/client';
+import { ApiError, apiGet } from '../services/api/client';
+import { fetchTrackStreamUrl } from '../services/api/playback';
 import { buildDownloadTarget, loadDownloadRegistry, saveDownloadRegistry } from '../services/downloads/registry';
 import { isDownloadActive, pauseResumableDownload, startResumableDownload } from '../services/downloads/resumable';
 import { useAuthStore } from '../store/auth-store';
@@ -93,7 +94,18 @@ export function useDownloadTrack() {
       const response =
         existing?.sourceUrl
           ? { download_url: existing.sourceUrl, quality: existing.quality, file_size: existing.fileSize }
-          : await apiGet<DownloadResponse>(`/mobile/downloads/song/${track.sourceId}`, token);
+          : await apiGet<DownloadResponse>(`/mobile/downloads/song/${track.sourceId}`, token).catch(async (error) => {
+              if (error instanceof ApiError && error.status === 404) {
+                const playbackResponse = await fetchTrackStreamUrl(track.sourceId!, token);
+                return {
+                  download_url: playbackResponse.url,
+                  quality: 'stream-fallback',
+                  file_size: undefined,
+                } satisfies DownloadResponse;
+              }
+
+              throw error;
+            });
 
       if (!response.download_url) {
         throw new Error('Download URL was not returned by the server.');
@@ -113,12 +125,21 @@ export function useDownloadTrack() {
       await persistFromStore();
 
       try {
+        let lastProgressWrite = 0;
+        let lastProgressValue = 0;
         const uri = await startResumableDownload({
           id: record.id,
           sourceUrl: record.sourceUrl!,
           localUri: record.localUri,
           resumeData: record.resumeData,
           onProgress: (progress) => {
+            const now = Date.now();
+            if (progress < 1 && now - lastProgressWrite < 1000 && progress - lastProgressValue < 0.05) {
+              return;
+            }
+
+            lastProgressWrite = now;
+            lastProgressValue = progress;
             useDownloadStore.getState().updateDownload(record.id, {
               progress,
               status: 'downloading',

@@ -215,18 +215,33 @@ export function mapGenres(response?: ApiListResponse<MobileGenre>): Genre[] {
 export function mapCharts(response?: ApiListResponse<MobileChart>): Chart[] {
   const items = listFromResponse(response);
 
-  return items.map((chart, index) => ({
-    id: String(chart.id ?? chart.slug ?? `chart-${index}`),
-    sourceId: typeof chart.id === 'number' ? chart.id : Number(chart.id) || undefined,
-    title: chart.title || `${chart.genre || 'Featured'} Chart`,
-    genre: chart.genre || 'Featured',
-    description: chart.description || 'Top tracks people are replaying right now.',
-    songCount: chart.songs_count ?? 0,
-    totalPlays: `${formatCompactCount(chart.total_plays)} plays`,
-    palette: pickPalette(index + 3),
-    slug: chart.slug ?? undefined,
-    artworkUrl: chart.artwork ?? null,
-  }));
+  return items.map((chart, index) => {
+    const totalPlays = chart.total_plays ?? 0;
+    const songCount = chart.songs_count ?? 0;
+    const averagePlays = songCount > 0 ? Math.round(totalPlays / songCount) : 0;
+
+    return {
+      id: String(chart.id ?? chart.slug ?? `chart-${index}`),
+      sourceId: typeof chart.id === 'number' ? chart.id : Number(chart.id) || undefined,
+      title: chart.title || `${chart.genre || 'Featured'} Chart`,
+      genre: chart.genre || 'Featured',
+      description: chart.description || 'Top tracks people are replaying right now.',
+      songCount,
+      totalPlays: `${formatCompactCount(totalPlays)} plays`,
+      momentumLabel:
+        totalPlays >= 100000
+          ? 'Heavy rotation'
+          : totalPlays >= 10000
+            ? 'Growing fast'
+            : songCount > 0
+              ? 'Emerging lane'
+              : 'Warming up',
+      averagePlaysLabel: songCount > 0 ? `${formatCompactCount(averagePlays)} avg / track` : undefined,
+      palette: pickPalette(index + 3),
+      slug: chart.slug ?? undefined,
+      artworkUrl: chart.artwork ?? null,
+    };
+  });
 }
 
 export function mapEvents(response?: ApiListResponse<PublicEvent>): EventItem[] {

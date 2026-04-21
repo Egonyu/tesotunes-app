@@ -15,6 +15,7 @@ export function MiniPlayer() {
   const currentTrack = usePlayerStore((state) => state.currentTrack);
   const isPlaying = usePlayerStore((state) => state.isPlaying);
   const isBuffering = usePlayerStore((state) => state.isBuffering);
+  const playbackError = usePlayerStore((state) => state.playbackError);
   const { togglePlayback, next } = usePlayerControls();
 
   if (!currentTrack) {
@@ -22,7 +23,7 @@ export function MiniPlayer() {
   }
 
   return (
-    <View pointerEvents="box-none" style={[styles.wrapper, { bottom: insets.bottom + 62 }]}>
+    <View pointerEvents="box-none" style={[styles.wrapper, { bottom: insets.bottom + 78 }]}>
       <Pressable onPress={() => router.push('/player')}>
         <BlurView intensity={28} tint="dark" style={styles.playerShell}>
           <ArtworkImage uri={currentTrack.artworkUrl} palette={currentTrack.palette} style={styles.artwork} />
@@ -32,9 +33,10 @@ export function MiniPlayer() {
             </Text>
             <View style={styles.subtitleRow}>
               <Text style={styles.subtitle} numberOfLines={1}>
-                {currentTrack.artist}
+                {playbackError ? playbackError : currentTrack.artist}
               </Text>
               {currentTrack.playbackSource === 'offline' ? <Text style={styles.offlineBadge}>Offline</Text> : null}
+              {isBuffering ? <Text style={styles.bufferingBadge}>Buffering</Text> : null}
             </View>
           </View>
           <TouchableOpacity onPress={togglePlayback} hitSlop={10}>
@@ -52,22 +54,24 @@ export function MiniPlayer() {
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    left: 12,
-    right: 12,
+    left: 70,
+    right: 14,
   },
   playerShell: {
-    borderRadius: 14,
+    borderRadius: 18,
     overflow: 'hidden',
-    backgroundColor: 'rgba(40, 16, 12, 0.92)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    backgroundColor: 'rgba(10, 10, 10, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 9,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   artwork: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: 8,
   },
   meta: {
@@ -76,12 +80,13 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
   subtitle: {
-    color: '#e7d7d2',
-    fontSize: 12,
+    color: colors.textMuted,
+    fontSize: 11,
+    flexShrink: 1,
   },
   subtitleRow: {
     flexDirection: 'row',
@@ -90,6 +95,12 @@ const styles = StyleSheet.create({
   },
   offlineBadge: {
     color: colors.accent,
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  bufferingBadge: {
+    color: '#fbbf24',
     fontSize: 10,
     fontWeight: '800',
     textTransform: 'uppercase',

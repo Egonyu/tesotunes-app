@@ -3,6 +3,7 @@ import { startTransition, useDeferredValue, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { AppHeader } from '../../src/components/app-header';
 import { ArtworkImage } from '../../src/components/artwork-image';
 import { Screen } from '../../src/components/screen';
 import { AlbumCard, ArtistCard, ChartCard, GenreCard, SearchTile, SectionHeader, TrackRow } from '../../src/components/media';
@@ -31,7 +32,23 @@ export default function SearchScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.title}>Search</Text>
+        <AppHeader
+          eyebrow="Discovery"
+          title="Search"
+          subtitle="Find songs, artists, albums, playlists, charts, and genres from the live TesoTunes catalog."
+          actions={[
+            {
+              icon: 'stats-chart-outline',
+              accessibilityLabel: 'Open charts',
+              onPress: () => router.push('/charts' as never),
+            },
+            {
+              icon: 'person-circle-outline',
+              accessibilityLabel: 'Open account hub',
+              onPress: () => router.push('/more' as never),
+            },
+          ]}
+        />
         <View style={styles.searchBar}>
           <Ionicons name="search" size={18} color="#1f2937" />
           <TextInput
@@ -162,11 +179,6 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   header: {
     gap: 18,
-  },
-  title: {
-    color: colors.text,
-    fontSize: 28,
-    fontWeight: '800',
   },
   searchBar: {
     backgroundColor: '#ffffff',

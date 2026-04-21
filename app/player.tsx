@@ -1,7 +1,7 @@
+import Slider from '@react-native-community/slider';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState } from 'react';
 import { router } from 'expo-router';
-import { ActivityIndicator, LayoutChangeEvent, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { usePlayerControls, usePlayerQueueSync, useQueueManagement } from '../src/hooks/use-player-queue';
@@ -19,6 +19,34 @@ function formatTime(seconds: number) {
   return `${minutes}:${String(remainder).padStart(2, '0')}`;
 }
 
+function StatusChip({
+  label,
+  tone = 'neutral',
+}: {
+  label: string;
+  tone?: 'neutral' | 'accent' | 'danger';
+}) {
+  return (
+    <View
+      style={[
+        styles.statusChip,
+        tone === 'accent' ? styles.statusChipAccent : null,
+        tone === 'danger' ? styles.statusChipDanger : null,
+      ]}
+    >
+      <Text
+        style={[
+          styles.statusChipLabel,
+          tone === 'accent' ? styles.statusChipLabelAccent : null,
+          tone === 'danger' ? styles.statusChipLabelDanger : null,
+        ]}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 export default function PlayerScreen() {
   const currentTrack = usePlayerStore((state) => state.currentTrack);
   const queue = usePlayerStore((state) => state.queue);
@@ -27,12 +55,11 @@ export default function PlayerScreen() {
   const durationSeconds = usePlayerStore((state) => state.durationSeconds);
   const isBuffering = usePlayerStore((state) => state.isBuffering);
   const playbackError = usePlayerStore((state) => state.playbackError);
-  const { togglePlayback, next, previous, seekTo, seekBackward, seekForward, controlsLoading } = usePlayerControls();
+  const { togglePlayback, next, previous, seekTo, controlsLoading } = usePlayerControls();
   const queueQuery = usePlayerQueueSync();
   const { clearQueue, shuffleQueue, removeFromQueue, reorderQueue, queueActionLoading } = useQueueManagement();
   const likeStatus = useTrackLikeStatus(currentTrack ?? undefined);
   const toggleLike = useToggleTrackLike(currentTrack ?? undefined);
-  const [progressWidth, setProgressWidth] = useState(0);
 
   if (!currentTrack) {
     return (
@@ -44,12 +71,17 @@ export default function PlayerScreen() {
 
   const activeTrack = currentTrack;
 
-  const progress = durationSeconds > 0 ? Math.min(currentTime / durationSeconds, 1) : 0;
   const queueItems = queueQuery.data?.queueItems ?? queue;
   const upcomingQueue = queueItems.filter((track) => track.id !== activeTrack.id);
   const totalQueueTracks = queueItems.length;
   const remainingDurationSeconds = queueQuery.data?.remainingDurationSeconds ?? 0;
   const queueSummary = `${totalQueueTracks} tracks • ${upcomingQueue.length} up next`;
+  const queueSyncLabel = queueQuery.isLoading
+    ? 'Syncing queue'
+    : queueQuery.data
+      ? 'Queue synced'
+      : 'Local queue';
+  const playbackModeLabel = activeTrack.playbackSource === 'offline' ? 'Offline source' : 'Streaming source';
 
   async function moveQueueItem(trackId: string, direction: -1 | 1) {
     const ordered = [...upcomingQueue];
@@ -118,22 +150,24 @@ export default function PlayerScreen() {
     }
   }
 
-  function handleProgressLayout(event: LayoutChangeEvent) {
-    setProgressWidth(event.nativeEvent.layout.width);
-  }
-
-  function handleProgressPress(locationX: number) {
-    if (durationSeconds <= 0 || progressWidth <= 0) {
-      return;
-    }
-
-    const ratio = Math.max(0, Math.min(locationX / progressWidth, 1));
-    seekTo(durationSeconds * ratio);
-  }
-
   return (
     <Screen contentContainerStyle={styles.content}>
       <LinearGradient colors={[currentTrack.palette[0], currentTrack.palette[1], '#090909']} style={styles.hero}>
+        <View style={styles.topBar}>
+          <TouchableOpacity style={styles.topBarButton} onPress={() => router.back()}>
+            <Ionicons name="chevron-down" size={22} color={colors.text} />
+          </TouchableOpacity>
+          <View style={styles.topBarMeta}>
+            <Text style={styles.topBarEyebrow}>Now Playing</Text>
+            <Text style={styles.topBarTitle} numberOfLines={1}>
+              {activeTrack.albumTitle || 'TesoTunes Player'}
+            </Text>
+          </View>
+          <TouchableOpacity style={styles.topBarButton} onPress={() => router.push('/more')}>
+            <Ionicons name="ellipsis-horizontal" size={20} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
         <ArtworkImage uri={currentTrack.artworkUrl} palette={currentTrack.palette} style={styles.artwork} />
         <View style={styles.meta}>
           <View>
@@ -141,68 +175,76 @@ export default function PlayerScreen() {
             <Text style={styles.artist}>{currentTrack.artist}</Text>
             {currentTrack.playbackSource === 'offline' ? <Text style={styles.offlineLabel}>Playing from downloads</Text> : null}
           </View>
-          <TouchableOpacity onPress={() => void toggleLike.mutateAsync()} disabled={!currentTrack.sourceId}>
+          <TouchableOpacity onPress={() => toggleLike.mutate()} disabled={!currentTrack.sourceId}>
             <Ionicons name={likeStatus.data ? 'heart' : 'heart-outline'} size={24} color={likeStatus.data ? colors.accent : colors.textMuted} />
           </TouchableOpacity>
         </View>
 
+        <View style={styles.statusRow}>
+          <StatusChip label={playbackModeLabel} tone={activeTrack.playbackSource === 'offline' ? 'accent' : 'neutral'} />
+          <StatusChip label={isBuffering ? 'Buffering' : isPlaying ? 'Playing' : 'Paused'} tone={isBuffering ? 'accent' : 'neutral'} />
+          <StatusChip label={queueSyncLabel} tone={queueQuery.data ? 'accent' : 'neutral'} />
+          {playbackError ? <StatusChip label="Action needed" tone="danger" /> : null}
+        </View>
+
         <View style={styles.progressBlock}>
-          <Pressable onLayout={handleProgressLayout} onPress={(event) => handleProgressPress(event.nativeEvent.locationX)}>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
-            </View>
-          </Pressable>
+          <Slider
+            style={styles.slider}
+            minimumValue={0}
+            maximumValue={durationSeconds > 0 ? durationSeconds : 1}
+            value={Math.min(currentTime, durationSeconds > 0 ? durationSeconds : 1)}
+            minimumTrackTintColor={colors.text}
+            maximumTrackTintColor="rgba(255,255,255,0.22)"
+            thumbTintColor={colors.text}
+            disabled={controlsLoading || durationSeconds <= 0}
+            onSlidingComplete={(value) => seekTo(value)}
+          />
           <View style={styles.progressMeta}>
             <Text style={styles.progressLabel}>{formatTime(currentTime)}</Text>
             <Text style={styles.progressLabel}>{durationSeconds > 0 ? formatTime(durationSeconds) : currentTrack.duration}</Text>
           </View>
         </View>
 
-        <View style={styles.seekRow}>
-          <TouchableOpacity onPress={seekBackward} hitSlop={10} disabled={controlsLoading} style={styles.seekButton}>
-            <Ionicons name="play-back-outline" size={20} color={colors.text} />
-            <Text style={styles.seekLabel}>10s</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={seekForward} hitSlop={10} disabled={controlsLoading} style={styles.seekButton}>
-            <Text style={styles.seekLabel}>10s</Text>
-            <Ionicons name="play-forward-outline" size={20} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-
         {playbackError ? <Text style={styles.errorLabel}>{playbackError}</Text> : null}
         {isBuffering ? <Text style={styles.bufferingLabel}>Buffering audio...</Text> : null}
 
-        {durationSeconds > 0 ? <Text style={styles.seekHint}>Tap the progress bar to jump to a moment.</Text> : null}
+        {durationSeconds > 0 ? <Text style={styles.seekHint}>Drag the slider to move through the song.</Text> : null}
 
         <View style={styles.controls}>
-          <Ionicons name="shuffle" size={22} color={colors.textMuted} />
-          <TouchableOpacity onPress={previous} hitSlop={12} disabled={controlsLoading}>
-            <Ionicons name="play-skip-back" size={36} color={colors.text} />
+          <TouchableOpacity style={[styles.sideControl, styles.sideControlMuted]} onPress={() => shuffleQueue.mutate()} disabled={queueActionLoading || totalQueueTracks <= 2}>
+            <Ionicons name="shuffle" size={20} color={totalQueueTracks > 2 ? colors.text : colors.textSubtle} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={previous} hitSlop={12} disabled={controlsLoading} style={styles.sideControl}>
+            <Ionicons name="play-skip-back" size={28} color={colors.text} />
           </TouchableOpacity>
           <TouchableOpacity onPress={togglePlayback} style={styles.playButton} hitSlop={12}>
             <Ionicons name={isBuffering ? 'hourglass-outline' : isPlaying ? 'pause' : 'play'} size={34} color="#111111" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={next} hitSlop={12} disabled={controlsLoading}>
-            <Ionicons name="play-skip-forward" size={36} color={colors.text} />
+          <TouchableOpacity onPress={next} hitSlop={12} disabled={controlsLoading} style={styles.sideControl}>
+            <Ionicons name="play-skip-forward" size={28} color={colors.text} />
           </TouchableOpacity>
-          <Ionicons name="repeat" size={22} color={colors.textMuted} />
+          <TouchableOpacity
+            style={[styles.sideControl, styles.sideControlMuted]}
+            onPress={() => clearQueue.mutate()}
+            disabled={queueActionLoading || totalQueueTracks <= 1}
+          >
+            <Ionicons name="trash-outline" size={20} color={totalQueueTracks > 1 ? colors.text : colors.textSubtle} />
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.footerTools}>
+        <View style={styles.transportHintRow}>
+          <Text style={styles.transportHint}>Skip, shuffle, and queue actions are now managed directly from the player.</Text>
           <TouchableOpacity
+            style={styles.queueManageButton}
             onPress={() =>
               currentTrack.sourceId
                 ? router.push({ pathname: '/playlists/pick', params: { trackId: String(currentTrack.sourceId), trackTitle: currentTrack.title } })
                 : undefined
             }
+            disabled={!currentTrack.sourceId}
           >
-            <Ionicons name="list-outline" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => void shuffleQueue.mutateAsync()} disabled={queueActionLoading || totalQueueTracks <= 2}>
-            <Ionicons name="shuffle" size={20} color={totalQueueTracks > 2 ? colors.textMuted : colors.textSubtle} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => void clearQueue.mutateAsync()} disabled={queueActionLoading || totalQueueTracks <= 1}>
-            <Ionicons name="trash-outline" size={20} color={totalQueueTracks > 1 ? colors.textMuted : colors.textSubtle} />
+            <Ionicons name="list-outline" size={16} color={currentTrack.sourceId ? colors.text : colors.textSubtle} />
+            <Text style={[styles.queueManageLabel, !currentTrack.sourceId ? styles.queueManageLabelDisabled : null]}>Add to playlist</Text>
           </TouchableOpacity>
         </View>
 
@@ -267,7 +309,7 @@ export default function PlayerScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     disabled={queueActionLoading || typeof track.queueItemId !== 'number'}
-                    onPress={() => (typeof track.queueItemId === 'number' ? void removeFromQueue.mutateAsync(track.queueItemId) : undefined)}
+                    onPress={() => (typeof track.queueItemId === 'number' ? removeFromQueue.mutate(track.queueItemId) : undefined)}
                   >
                     <Ionicons name="close-outline" size={20} color={colors.textMuted} />
                   </TouchableOpacity>
@@ -291,6 +333,37 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 160,
     gap: 28,
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  topBarButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(0,0,0,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topBarMeta: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  topBarEyebrow: {
+    color: 'rgba(255,255,255,0.72)',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  topBarTitle: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
   },
   artwork: {
     width: '100%',
@@ -321,18 +394,40 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-  progressBlock: {
-    gap: 10,
+  statusRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  progressBar: {
-    height: 4,
-    backgroundColor: 'rgba(255,255,255,0.26)',
+  statusChip: {
     borderRadius: 999,
-    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
-  progressFill: {
-    height: '100%',
-    backgroundColor: colors.text,
+  statusChipAccent: {
+    backgroundColor: 'rgba(30,215,96,0.16)',
+  },
+  statusChipDanger: {
+    backgroundColor: 'rgba(239,68,68,0.16)',
+  },
+  statusChipLabel: {
+    color: colors.text,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  statusChipLabelAccent: {
+    color: colors.accent,
+  },
+  statusChipLabelDanger: {
+    color: '#fda4af',
+  },
+  progressBlock: {
+    gap: 4,
+  },
+  slider: {
+    width: '100%',
+    height: 28,
   },
   progressMeta: {
     flexDirection: 'row',
@@ -342,22 +437,6 @@ const styles = StyleSheet.create({
     color: '#d1d5db',
     fontSize: 12,
     fontWeight: '700',
-  },
-  seekRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  seekButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 6,
-  },
-  seekLabel: {
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: '800',
   },
   seekHint: {
     color: colors.textSubtle,
@@ -379,6 +458,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  sideControl: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sideControlMuted: {
+    backgroundColor: 'rgba(0,0,0,0.18)',
+  },
   playButton: {
     width: 72,
     height: 72,
@@ -387,10 +477,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  footerTools: {
+  transportHintRow: {
     marginTop: 'auto',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 16,
+  },
+  transportHint: {
+    flex: 1,
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  queueManageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  queueManageLabel: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  queueManageLabelDisabled: {
+    color: colors.textSubtle,
   },
   queueSection: {
     gap: 12,

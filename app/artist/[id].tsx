@@ -66,7 +66,7 @@ export default function ArtistDetailScreen() {
         {artist.bio ? <Text style={styles.bio}>{artist.bio}</Text> : null}
         <TouchableOpacity
           style={[styles.followButton, followStatus.data ? styles.followingButton : null]}
-          onPress={() => void toggleFollow.mutateAsync()}
+          onPress={() => toggleFollow.mutate()}
           disabled={!isAuthenticated || toggleFollow.isPending || !artist.sourceId}
         >
           {toggleFollow.isPending ? (

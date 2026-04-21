@@ -45,12 +45,35 @@ export default function ChartDetailScreen() {
           <View style={styles.statPill}>
             <Text style={styles.statLabel}>{chart.totalPlays}</Text>
           </View>
+          {chart.momentumLabel ? (
+            <View style={styles.statPill}>
+              <Text style={styles.statLabel}>{chart.momentumLabel}</Text>
+            </View>
+          ) : null}
+          {chart.averagePlaysLabel ? (
+            <View style={styles.statPill}>
+              <Text style={styles.statLabel}>{chart.averagePlaysLabel}</Text>
+            </View>
+          ) : null}
         </View>
       </LinearGradient>
 
       <View style={styles.block}>
         <Text style={styles.blockTitle}>Top tracks</Text>
-        {songs.length > 0 ? songs.map((track) => <TrackRow key={track.id} track={track} queue={songs} />) : <StateMessage compact title="Chart still warming up" body="This chart will fill in as soon as enough live songs are available for this lane." />}
+        {songs.length > 0 ? (
+          songs.map((track, index) => (
+            <View key={track.id} style={styles.rankedTrackRow}>
+              <View style={styles.rankPill}>
+                <Text style={styles.rankLabel}>{index + 1}</Text>
+              </View>
+              <View style={styles.rankedTrackContent}>
+                <TrackRow track={track} queue={songs} />
+              </View>
+            </View>
+          ))
+        ) : (
+          <StateMessage compact title="Chart still warming up" body="This chart will fill in as soon as enough live songs are available for this lane." />
+        )}
       </View>
 
       <View style={styles.block}>
@@ -137,5 +160,27 @@ const styles = StyleSheet.create({
   rail: {
     gap: 16,
     paddingRight: 16,
+  },
+  rankedTrackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  rankPill: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -6,
+  },
+  rankLabel: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  rankedTrackContent: {
+    flex: 1,
   },
 });

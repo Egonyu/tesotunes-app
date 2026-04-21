@@ -10,6 +10,7 @@ type AuthState = {
   token: string | null;
   hydrated: boolean;
   setSession: (payload: { user: AuthUser; token: string }) => void;
+  updateUser: (payload: Partial<AuthUser>) => void;
   clearSession: () => void;
   setHydrated: (value: boolean) => void;
   setStatus: (status: AuthStatus) => void;
@@ -27,6 +28,15 @@ export const useAuthStore = create<AuthState>((set) => ({
       status: 'authenticated',
       hydrated: true,
     }),
+  updateUser: (payload) =>
+    set((state) => ({
+      user: state.user
+        ? {
+            ...state.user,
+            ...payload,
+          }
+        : state.user,
+    })),
   clearSession: () =>
     set({
       user: null,

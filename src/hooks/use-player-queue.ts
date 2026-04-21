@@ -5,12 +5,14 @@ import { seekActivePlayerTo } from '../providers/audio-playback-provider';
 import { apiDelete, apiGet, apiPost, apiPut } from '../services/api/client';
 import { ensureRemotePlaybackTrack } from '../services/api/playback';
 import { resolveQueuePlayback, resolveTrackPlayback } from '../services/downloads/playback';
+import { pushRecentTrack } from '../services/media/recent-tracks';
 import { enqueuePlayHistoryItem } from '../services/sync/play-history-queue';
 import { mapQueue, mapQueueSong } from '../services/api/mappers';
 import { useAuthStore } from '../store/auth-store';
 import { useDownloadStore } from '../store/download-store';
 import { usePlayerStore } from '../store/player-store';
 import { QueueItem, QueueSong } from '../types/api';
+import { Track } from '../types/music';
 
 type QueueResponse = {
   success?: boolean;
@@ -39,6 +41,20 @@ type PlayerTransportResponse = {
   };
 };
 
+function nextTrackIndex(queue: Track[], currentTrack: Track | null) {
+  const currentIndex = queue.findIndex((track) => track.id === currentTrack?.id);
+  return currentIndex === -1 ? 0 : (currentIndex + 1) % queue.length;
+}
+
+function previousTrackIndex(queue: Track[], currentTrack: Track | null) {
+  const currentIndex = queue.findIndex((track) => track.id === currentTrack?.id);
+  if (currentIndex <= 0) {
+    return queue.length - 1;
+  }
+
+  return currentIndex - 1;
+}
+
 export function usePlayerQueueSync() {
   const token = useAuthStore((state) => state.token);
   const isAuthenticated = useAuthStore((state) => state.status === 'authenticated');
@@ -57,11 +73,16 @@ export function usePlayerQueueSync() {
 
       const resolvedQueue = resolveQueuePlayback(queue, downloads);
       const resolvedCurrentTrack = currentTrack ? resolveTrackPlayback(currentTrack, downloads) : null;
+      const localPlayerState = usePlayerStore.getState();
+      const preservePlaying =
+        localPlayerState.isPlaying &&
+        !!resolvedCurrentTrack &&
+        localPlayerState.currentTrack?.id === resolvedCurrentTrack.id;
 
       return {
         queue: resolvedQueue,
         currentTrack: resolvedCurrentTrack,
-        isPlaying: statusResponse.data?.is_playing ?? false,
+        isPlaying: preservePlaying ? true : (statusResponse.data?.is_playing ?? localPlayerState.isPlaying),
         queueItems: resolvedQueue,
         totalDurationSeconds: queueResponse.data?.total_duration_seconds ?? 0,
         remainingDurationSeconds: queueResponse.data?.remaining_duration_seconds ?? 0,
@@ -164,42 +185,65 @@ export function usePlayerControls() {
   const isPlaying = usePlayerStore((state) => state.isPlaying);
   const currentTime = usePlayerStore((state) => state.currentTime);
   const durationSeconds = usePlayerStore((state) => state.durationSeconds);
-  const playNextLocal = usePlayerStore((state) => state.playNext);
-  const playPreviousLocal = usePlayerStore((state) => state.playPrevious);
   const togglePlaybackLocal = usePlayerStore((state) => state.togglePlayback);
   const setCurrentTrack = usePlayerStore((state) => state.setCurrentTrack);
   const setIsPlaying = usePlayerStore((state) => state.setIsPlaying);
   const setPlaybackStatus = usePlayerStore((state) => state.setPlaybackStatus);
+  const setPlaybackError = usePlayerStore((state) => state.setPlaybackError);
   const downloads = useDownloadStore((state) => state.downloads);
   const queryClient = useQueryClient();
   const lastSyncedRef = useRef<string | null>(null);
   const lastRecordedTrackRef = useRef<string | null>(null);
 
+  async function activateTrack(track: Track, nextQueue = queue) {
+    if (track.playbackSource === 'offline' || track.playbackUri) {
+      const normalizedQueue = nextQueue.map((queueTrack) => (queueTrack.id === track.id ? track : queueTrack));
+      setCurrentTrack(track);
+      usePlayerStore.setState({ queue: normalizedQueue });
+      setIsPlaying(true);
+      setPlaybackError(null);
+      void pushRecentTrack(track).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['user-library'] });
+      });
+      return true;
+    }
+
+    if (!track.sourceId) {
+      setPlaybackError('This track does not have a playable audio source yet.');
+      return false;
+    }
+
+    try {
+      const resolvedTrack = await ensureRemotePlaybackTrack(track, token ?? undefined);
+      const normalizedQueue = nextQueue.map((queueTrack) => (queueTrack.id === track.id ? resolvedTrack : queueTrack));
+      setCurrentTrack(resolvedTrack);
+      usePlayerStore.setState({ queue: normalizedQueue });
+      setIsPlaying(true);
+      setPlaybackError(null);
+      void pushRecentTrack(resolvedTrack).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['user-library'] });
+      });
+      return true;
+    } catch {
+      setPlaybackError('This track does not have a playable audio source yet.');
+      return false;
+    }
+  }
+
   const nextMutation = useMutation({
     mutationFn: async () => {
       if (!isAuthenticated || !token) {
-        playNextLocal();
         return null;
       }
 
       return apiPost<PlayerTransportResponse>('/player/next', {}, token);
     },
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
       const transportSong = response?.data?.song;
       if (transportSong) {
         const mappedTrack = resolveTrackPlayback(mapQueueSong(transportSong, 0), downloads);
-
-        void ensureRemotePlaybackTrack(mappedTrack, token ?? undefined)
-          .then((track) => {
-            setCurrentTrack(track);
-            setIsPlaying(true);
-            queryClient.invalidateQueries({ queryKey: ['player-queue'] });
-          })
-          .catch(() => {
-            setCurrentTrack(mappedTrack);
-            setIsPlaying(true);
-            queryClient.invalidateQueries({ queryKey: ['player-queue'] });
-          });
+        await activateTrack(mappedTrack);
+        queryClient.invalidateQueries({ queryKey: ['player-queue'] });
       }
     },
   });
@@ -207,28 +251,17 @@ export function usePlayerControls() {
   const previousMutation = useMutation({
     mutationFn: async () => {
       if (!isAuthenticated || !token) {
-        playPreviousLocal();
         return null;
       }
 
       return apiPost<PlayerTransportResponse>('/player/previous', {}, token);
     },
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
       const transportSong = response?.data?.song;
       if (transportSong) {
         const mappedTrack = resolveTrackPlayback(mapQueueSong(transportSong, 0), downloads);
-
-        void ensureRemotePlaybackTrack(mappedTrack, token ?? undefined)
-          .then((track) => {
-            setCurrentTrack(track);
-            setIsPlaying(true);
-            queryClient.invalidateQueries({ queryKey: ['player-queue'] });
-          })
-          .catch(() => {
-            setCurrentTrack(mappedTrack);
-            setIsPlaying(true);
-            queryClient.invalidateQueries({ queryKey: ['player-queue'] });
-          });
+        await activateTrack(mappedTrack);
+        queryClient.invalidateQueries({ queryKey: ['player-queue'] });
       }
     },
   });
@@ -236,6 +269,48 @@ export function usePlayerControls() {
   const togglePlayback = () => {
     togglePlaybackLocal();
   };
+
+  function resolvePlaybackErrorMessage(error: unknown) {
+    if (error instanceof Error) {
+      if (error.message.includes('Audio file not available')) {
+        return 'This track does not have a playable audio source yet.';
+      }
+
+      return error.message;
+    }
+
+    return 'Playback action failed. Please try another track.';
+  }
+
+  function runMutationSafely(action: Promise<unknown>) {
+    void action.catch((error) => {
+      setPlaybackError(resolvePlaybackErrorMessage(error));
+    });
+  }
+
+  function moveToLocalQueueTrack(direction: 'next' | 'previous') {
+    if (queue.length === 0) {
+      return;
+    }
+
+    const targetIndex = direction === 'next' ? nextTrackIndex(queue, currentTrack) : previousTrackIndex(queue, currentTrack);
+    const targetTrack = queue[targetIndex];
+    if (!targetTrack) {
+      return;
+    }
+
+    runMutationSafely(activateTrack(targetTrack, queue));
+  }
+
+  function moveToLocalQueueTrackWithFallback(direction: 'next' | 'previous', error?: unknown) {
+    const fallbackMessage =
+      direction === 'next'
+        ? 'Server skip failed, using local queue.'
+        : 'Server previous failed, using local queue.';
+
+    setPlaybackError(error ? `${resolvePlaybackErrorMessage(error)} ${fallbackMessage}` : fallbackMessage);
+    moveToLocalQueueTrack(direction);
+  }
 
   useEffect(() => {
     if (currentTrack?.id !== lastRecordedTrackRef.current && currentTrack?.sourceId) {
@@ -315,20 +390,24 @@ export function usePlayerControls() {
         timestamp: Date.now(),
       },
       token
-    ).catch((error) => {
-      if (error instanceof Error && error.message.includes('Network request failed')) {
-        void enqueuePlayHistoryItem({
-          songId: currentSongId,
-          playedAt: new Date().toISOString(),
-          durationPlayed: position,
-          completed: completionRatio >= 0.95,
-        });
-        return;
-      }
+    )
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ['user-library'] });
+      })
+      .catch((error) => {
+        if (error instanceof Error && error.message.includes('Network request failed')) {
+          void enqueuePlayHistoryItem({
+            songId: currentSongId,
+            playedAt: new Date().toISOString(),
+            durationPlayed: position,
+            completed: completionRatio >= 0.95,
+          });
+          return;
+        }
 
-      lastRecordedTrackRef.current = null;
-    });
-  }, [currentTime, currentTrack?.id, currentTrack?.sourceId, durationSeconds, isAuthenticated, token]);
+        lastRecordedTrackRef.current = null;
+      });
+  }, [currentTime, currentTrack?.id, currentTrack?.sourceId, durationSeconds, isAuthenticated, queryClient, token]);
 
   useEffect(() => {
     if (!isAuthenticated || !token || !currentTrack?.sourceId || queue.length === 0) {
@@ -350,11 +429,21 @@ export function usePlayerControls() {
   }, [currentTrack?.sourceId, isAuthenticated, queue, queryClient, token]);
 
   return {
-    next: () => void nextMutation.mutateAsync(),
-    previous: () => void previousMutation.mutateAsync(),
-    seekTo: (seconds: number) => void seekMutation.mutateAsync(seconds),
-    seekBackward: () => void seekMutation.mutateAsync(Math.max(0, currentTime - 10)),
-    seekForward: () => void seekMutation.mutateAsync(durationSeconds > 0 ? Math.min(durationSeconds, currentTime + 10) : currentTime + 10),
+    next: () =>
+      isAuthenticated && token
+        ? void nextMutation.mutateAsync().catch((error) => {
+            moveToLocalQueueTrackWithFallback('next', error);
+          })
+        : moveToLocalQueueTrack('next'),
+    previous: () =>
+      isAuthenticated && token
+        ? void previousMutation.mutateAsync().catch((error) => {
+            moveToLocalQueueTrackWithFallback('previous', error);
+          })
+        : moveToLocalQueueTrack('previous'),
+    seekTo: (seconds: number) => runMutationSafely(seekMutation.mutateAsync(seconds)),
+    seekBackward: () => runMutationSafely(seekMutation.mutateAsync(Math.max(0, currentTime - 10))),
+    seekForward: () => runMutationSafely(seekMutation.mutateAsync(durationSeconds > 0 ? Math.min(durationSeconds, currentTime + 10) : currentTime + 10)),
     togglePlayback,
     controlsLoading: nextMutation.isPending || previousMutation.isPending || seekMutation.isPending,
   };

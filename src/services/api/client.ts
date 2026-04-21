@@ -1,4 +1,6 @@
 const FALLBACK_API_BASE_URL = 'http://127.0.0.1:8000/api';
+import { getRuntimePlatform } from '../platform/runtime-platform';
+import { Platform } from 'react-native';
 
 export function getApiBaseUrl() {
   return (process.env.EXPO_PUBLIC_API_BASE_URL || FALLBACK_API_BASE_URL).replace(/\/+$/, '');
@@ -63,6 +65,7 @@ async function request<T>(method: HttpMethod, path: string, token?: string, body
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
+        ...(Platform.OS === 'web' ? {} : { 'x-expo-platform': getRuntimePlatform() }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),

@@ -9,6 +9,8 @@ import { StateMessage } from '../../src/components/state-message';
 export default function ChartsBrowseScreen() {
   const { data, isLoading } = useSearchBrowse();
   const charts = data?.charts ?? [];
+  const totalTracks = charts.reduce((sum, chart) => sum + chart.songCount, 0);
+  const leadChart = charts[0];
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -26,6 +28,22 @@ export default function ChartsBrowseScreen() {
             <Text style={styles.subtitle}>
               Real-time genre lanes and replay momentum from the live TesoTunes catalog.
             </Text>
+            {charts.length > 0 ? (
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryValue}>{charts.length}</Text>
+                  <Text style={styles.summaryLabel}>Active charts</Text>
+                </View>
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryValue}>{totalTracks}</Text>
+                  <Text style={styles.summaryLabel}>Tracks ranked</Text>
+                </View>
+                <View style={styles.summaryCardWide}>
+                  <Text style={styles.summaryValue}>{leadChart?.genre ?? 'Live'}</Text>
+                  <Text style={styles.summaryLabel}>{leadChart?.momentumLabel ?? 'Momentum lane'}</Text>
+                </View>
+              </View>
+            ) : null}
           </View>
         }
         renderItem={({ item }) => (
@@ -74,6 +92,42 @@ const styles = StyleSheet.create({
   row: {
     justifyContent: 'space-between',
     gap: 12,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingTop: 4,
+  },
+  summaryCard: {
+    width: '31%',
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    gap: 4,
+  },
+  summaryCardWide: {
+    width: '100%',
+    borderRadius: 18,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 4,
+  },
+  summaryValue: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  summaryLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
   },
   cardWrap: {
     flex: 1,

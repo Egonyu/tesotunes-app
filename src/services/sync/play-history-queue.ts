@@ -1,9 +1,11 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
 import { apiPost } from '../api/client';
+import { readJsonPersistence, writeJsonPersistence } from '../storage/json-persistence';
 
 const SYNC_DIR = `${FileSystem.documentDirectory}sync`;
 const PLAY_HISTORY_QUEUE_PATH = `${SYNC_DIR}/play-history.json`;
+const PLAY_HISTORY_WEB_KEY = 'tesotunes.sync.play-history';
 
 export type QueuedPlayHistoryItem = {
   id: string;
@@ -20,34 +22,25 @@ type PlayHistorySyncResponse = {
   errors?: Array<Record<string, unknown>>;
 };
 
-async function ensureSyncDir() {
-  const info = await FileSystem.getInfoAsync(SYNC_DIR);
-
-  if (!info.exists) {
-    await FileSystem.makeDirectoryAsync(SYNC_DIR, { intermediates: true });
-  }
-}
-
 export async function loadQueuedPlayHistory(): Promise<QueuedPlayHistoryItem[]> {
-  await ensureSyncDir();
-  const info = await FileSystem.getInfoAsync(PLAY_HISTORY_QUEUE_PATH);
-
-  if (!info.exists) {
-    return [];
-  }
-
-  const content = await FileSystem.readAsStringAsync(PLAY_HISTORY_QUEUE_PATH);
-
-  try {
-    return JSON.parse(content) as QueuedPlayHistoryItem[];
-  } catch {
-    return [];
-  }
+  return readJsonPersistence<QueuedPlayHistoryItem[]>({
+    webKey: PLAY_HISTORY_WEB_KEY,
+    filePath: PLAY_HISTORY_QUEUE_PATH,
+    directoryPath: SYNC_DIR,
+    fallback: [],
+  });
 }
 
 async function saveQueuedPlayHistory(items: QueuedPlayHistoryItem[]) {
-  await ensureSyncDir();
-  await FileSystem.writeAsStringAsync(PLAY_HISTORY_QUEUE_PATH, JSON.stringify(items));
+  await writeJsonPersistence<QueuedPlayHistoryItem[]>(
+    {
+      webKey: PLAY_HISTORY_WEB_KEY,
+      filePath: PLAY_HISTORY_QUEUE_PATH,
+      directoryPath: SYNC_DIR,
+      fallback: [],
+    },
+    items
+  );
 }
 
 export async function enqueuePlayHistoryItem(input: Omit<QueuedPlayHistoryItem, 'id'>) {

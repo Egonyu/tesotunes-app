@@ -187,21 +187,24 @@ Success condition:
 ### Real
 
 - Auth and session: secure token bootstrap, sign-in, sign-up handoff, session restore
+- Account hub and profile management: the More tab is now a live account-and-music hub, profile data loads from the authenticated backend profile, and profile text edits persist through the mobile app
+- Shared app chrome and account affordances: Home, Search, and Library now expose a consistent profile-aware header pattern with direct navigation into charts, account, and profile management
 - Playback core: real `expo-audio` playback, seek/progress sync, queue sync, qualified play recording
 - Playlists: list, create, detail, edit, delete, reorder, remove-track, add-to-playlist
 - Downloads and offline: secure download URLs, local registry, offline-preferred playback, queued sync for likes, follows, and play history
 - Library foundations: authenticated liked songs, followed artists, recent plays, downloads, playlists, and library collection rails driven by live user data
-- Discovery data foundations: live home songs, artists, albums, dedicated artists browse, dedicated albums browse, featured chart detail, dedicated charts browse, genre browse, dedicated genres browse, song search, genre detail, album detail
+- Discovery data foundations: live home songs, artists, albums, dedicated artists browse, dedicated albums browse, featured chart detail, dedicated charts browse, genre browse, dedicated genres browse, song search, genre detail, album detail, personalized home stats, and live playlist rails from user library data
 
 ### Hybrid
 
-- Home and discovery: featured charts and chart detail are wired, but production currently returns an empty charts dataset so the UI now falls back to explicit, actionable empty states and alternate discovery entry points; artist and album browse now also fall back to stable public catalog endpoints when mobile convenience endpoints fail
+- Home and discovery: the home screen now uses a denser Spotify-inspired editorial layout with quick-access tiles, top filter chips, hero discovery treatment, mixed card sizes, stronger lead-card hierarchy in key rails, section-specific badges, differentiated artwork proportions, live playlist recommendation cards, and multiple themed rails such as biggest hits, fresh music, artist-led picks, jump-back-in tracks, and recent-listening continuation; rich home cards now also expose direct play and queue affordances where the source track is available, include stronger press feedback and safer nested action handling for device feel, use recent and liked listening signals to shape the `Made for you` stack, and favor content-aware destinations like album and artist detail instead of routing every rich tile through a generic player entry, while production still uses explicit empty states where catalog depth is limited
 - Search: live songs, genres, albums, artists, and playlists are wired, browse surfaces now include dedicated charts and genres routes, and grouped search states now render explicit section counts and empty states instead of silently collapsing, but non-song search groups may still be empty until more public catalog data is available
 - Artist detail: live artist stats, songs, and albums are wired; remaining richness still depends on catalog completeness from the public API
-- Library experience: real data is primary, and core music collections now deep-link into focused library subsections; some overview labels still remain static presentation copy
+- Library experience: real data is primary, core music collections deep-link into focused subsections, and recent listening now has a local-first fallback so `Made for you` and `Recently played` can react immediately while server history catches up
 - Build and release: dev build path exists and GitHub Actions now cover install, TypeScript, Expo doctor, and config validation; stronger native verification is still pending
-- Player queue UX: full player now supports live shuffle, clear, remove, manual up/down queue ordering, and play-now promotion from the upcoming queue, but we still need native on-device verification of the overall playback experience
-- Background playback groundwork: the Expo audio provider now keeps the audio session active during background transitions instead of deactivating it, live track metadata now maps the backend's top-level artist field correctly for player and notification display, and the remaining work is device verification of lock-screen and foreground-service behavior
+- Player queue UX: full player now supports live shuffle, clear, remove, manual up/down queue ordering, play-now promotion from the upcoming queue, and clearer playback state chips plus queue health feedback, but we still need native on-device verification of the overall playback experience
+- Background playback groundwork: the Expo audio provider now keeps the audio session active during background transitions instead of deactivating it, live track metadata now maps the backend's top-level artist field correctly for player and notification display, track rows now preflight remote playback before switching player state, and the remaining work is device verification of lock-screen and foreground-service behavior
+- Downloads: the mobile download path now falls back to the playable stream URL when a dedicated mobile download endpoint is absent, which should keep offline saves working while backend coverage is normalized
 - Email verification handling: mobile auth now recognizes unverified-email login responses, routes new signups into a verification screen, supports resend from the app, can complete verification when opened on the signed `tesotunes://verify-email` callback, and the web verification page now attempts native app handoff before falling back to browser verification
 
 ### Template/Mock
@@ -213,7 +216,9 @@ Success condition:
 
 ### Active next targets
 
-- native verification of the upgraded queue management UX inside the player
+- stronger live personalization beyond recent plays and liked songs once a dedicated recommendation source exists
+- native verification of the upgraded queue management UX and playback-state feedback inside the player
+- on-device performance verification after removing per-row like status network requests
 - robust mobile HTTPS backend exposure for phone testing
 - lock-screen controls and native background playback verification
 - true background download execution

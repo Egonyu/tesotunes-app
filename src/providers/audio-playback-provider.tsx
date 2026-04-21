@@ -37,7 +37,6 @@ export function AudioPlaybackProvider({ children }: PropsWithChildren) {
   const isPlaying = usePlayerStore((state) => state.isPlaying);
   const setPlaybackStatus = usePlayerStore((state) => state.setPlaybackStatus);
   const setPlaybackError = usePlayerStore((state) => state.setPlaybackError);
-  const setIsPlaying = usePlayerStore((state) => state.setIsPlaying);
   const setCurrentTrack = usePlayerStore((state) => state.setCurrentTrack);
   const playNext = usePlayerStore((state) => state.playNext);
   const token = useAuthStore((state) => state.token);
@@ -71,7 +70,6 @@ export function AudioPlaybackProvider({ children }: PropsWithChildren) {
         durationSeconds: status.duration,
         isBuffering: status.isBuffering,
       });
-      setIsPlaying(status.playing);
 
       if (status.didJustFinish) {
         playNext();
@@ -83,7 +81,7 @@ export function AudioPlaybackProvider({ children }: PropsWithChildren) {
       statusSubscription.remove();
       player.remove();
     };
-  }, [playNext, setIsPlaying, setPlaybackError, setPlaybackStatus]);
+  }, [playNext, setPlaybackError, setPlaybackStatus]);
 
   useEffect(() => {
     const player = playerRef.current;

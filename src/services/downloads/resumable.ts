@@ -1,4 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 
 type ProgressHandler = (progress: number) => void;
 
@@ -36,6 +37,10 @@ export async function startResumableDownload(input: {
   resumeData?: string | null;
   onProgress?: ProgressHandler;
 }) {
+  if (Platform.OS === 'web') {
+    throw new Error('Offline downloads are not supported on web builds.');
+  }
+
   const task = createTask(input.id, input.sourceUrl, input.localUri, input.resumeData, input.onProgress);
 
   try {
@@ -47,6 +52,10 @@ export async function startResumableDownload(input: {
 }
 
 export async function pauseResumableDownload(id: string) {
+  if (Platform.OS === 'web') {
+    return null;
+  }
+
   const task = activeDownloads.get(id);
 
   if (!task) {
@@ -59,5 +68,9 @@ export async function pauseResumableDownload(id: string) {
 }
 
 export function isDownloadActive(id: string) {
+  if (Platform.OS === 'web') {
+    return false;
+  }
+
   return activeDownloads.has(id);
 }

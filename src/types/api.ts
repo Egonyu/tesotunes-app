@@ -167,3 +167,35 @@ export type ApiPlaylist = {
   } | null;
   songs?: MobileSong[] | null;
 };
+
+export type ApiUserProfile = {
+  id?: number | string;
+  name?: string | null;
+  username?: string | null;
+  email?: string | null;
+  display_name?: string | null;
+  avatar?: string | null;
+  bio?: string | null;
+  banner?: string | null;
+  country?: string | null;
+  city?: string | null;
+  timezone?: string | null;
+  language?: string | null;
+  role?: string | null;
+  is_artist?: boolean | null;
+  is_active?: boolean | null;
+  is_verified?: boolean | null;
+  is_premium?: boolean | null;
+  credits?: number | null;
+  phone?: string | null;
+  website?: string | null;
+  last_login_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  artist?: {
+    id?: number | string;
+    stage_name?: string | null;
+    slug?: string | null;
+    is_verified?: boolean | null;
+  } | null;
+};

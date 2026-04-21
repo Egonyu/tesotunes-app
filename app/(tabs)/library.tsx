@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { AppHeader } from '../../src/components/app-header';
 import { Screen } from '../../src/components/screen';
 import { StateMessage } from '../../src/components/state-message';
 import { ArtistCard, TrackRow } from '../../src/components/media';
@@ -14,7 +15,6 @@ import { colors } from '../../src/theme/colors';
 
 export default function LibraryScreen() {
   const authStatus = useAuthStore((state) => state.status);
-  const user = useAuthStore((state) => state.user);
   const { data, isLoading } = useUserLibrary();
   const { data: playlists } = useMyPlaylists();
   const localDownloads = useDownloadStore((state) => state.downloads);
@@ -78,13 +78,23 @@ export default function LibraryScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <View style={styles.headerMeta}>
-          <Text style={styles.title}>Your Library</Text>
-          <Text style={styles.userLabel}>{user?.name}</Text>
-        </View>
-        <TouchableOpacity onPress={() => void signOut()}>
-          <Ionicons name="log-out-outline" size={22} color={colors.text} />
-        </TouchableOpacity>
+        <AppHeader
+          eyebrow="Collection"
+          title="Your Library"
+          subtitle="Your saved songs, playlists, artists, downloads, and recent listening in one place."
+          actions={[
+            {
+              icon: 'create-outline',
+              accessibilityLabel: 'Edit profile',
+              onPress: () => router.push('/profile/edit' as never),
+            },
+            {
+              icon: 'log-out-outline',
+              accessibilityLabel: 'Sign out',
+              onPress: () => void signOut(),
+            },
+          ]}
+        />
       </View>
 
       <View style={styles.chips}>
@@ -233,22 +243,12 @@ export default function LibraryScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerMeta: {
-    gap: 4,
+    gap: 8,
   },
   title: {
     color: colors.text,
     fontSize: 28,
     fontWeight: '800',
-  },
-  userLabel: {
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '600',
   },
   chips: {
     flexDirection: 'row',

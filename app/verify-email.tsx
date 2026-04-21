@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useRootNavigationState } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -8,6 +8,7 @@ import { resendVerificationEmail, verifyEmailLink } from '../src/services/auth/s
 import { colors } from '../src/theme/colors';
 
 export default function VerifyEmailScreen() {
+  const rootNavigationState = useRootNavigationState();
   const params = useLocalSearchParams<{
     email?: string;
     sent?: string;
@@ -63,6 +64,10 @@ export default function VerifyEmailScreen() {
       return;
     }
 
+    if (!rootNavigationState?.key) {
+      return;
+    }
+
     let cancelled = false;
     setVerifying(true);
     setError(null);
@@ -102,7 +107,7 @@ export default function VerifyEmailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [email, verificationPayload]);
+  }, [email, rootNavigationState?.key, verificationPayload]);
 
   async function handleResend() {
     if (!email) {

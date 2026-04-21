@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { apiDelete, apiGet, apiPost } from '../services/api/client';
+import { ApiError, apiDelete, apiGet, apiPost } from '../services/api/client';
 import { enqueueUserAction } from '../services/sync/user-action-queue';
-import { useUserLibrary } from './use-user-library';
 import { useAuthStore } from '../store/auth-store';
+import { useLibraryStore } from '../store/library-store';
 import { Artist } from '../types/music';
 
 type FollowResponse = {
@@ -14,13 +14,13 @@ type FollowResponse = {
 
 export function useFollowedArtistIds() {
   const authStatus = useAuthStore((state) => state.status);
-  const { data } = useUserLibrary();
+  const followedArtistIds = useLibraryStore((state) => state.followedArtistIds);
 
   if (authStatus !== 'authenticated') {
     return new Set<string>();
   }
 
-  return new Set((data?.followedArtists ?? []).map((artist) => `source:${artist.sourceId ?? artist.id}`));
+  return followedArtistIds;
 }
 
 export function useArtistFollowStatus(artist?: Artist) {
@@ -52,11 +52,19 @@ export function useToggleArtistFollow(artist?: Artist) {
 
       try {
         if (followStatus.data) {
-          return await apiDelete<FollowResponse>(`/artists/${artist.sourceId}/follow`, token);
+          return await apiDelete<FollowResponse>(`/v1/artists/${artist.sourceId}/follow`, token);
         }
 
-        return await apiPost<FollowResponse>(`/artists/${artist.sourceId}/follow`, {}, token);
+        return await apiPost<FollowResponse>(`/v1/artists/${artist.sourceId}/follow`, {}, token);
       } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          if (followStatus.data) {
+            return await apiDelete<FollowResponse>(`/artists/${artist.sourceId}/follow`, token);
+          }
+
+          return await apiPost<FollowResponse>(`/artists/${artist.sourceId}/follow`, {}, token);
+        }
+
         if (!(error instanceof Error) || !error.message.includes('Network request failed')) {
           throw error;
         }

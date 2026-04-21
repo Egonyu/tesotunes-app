@@ -1,29 +1,23 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 
 import { DownloadRecord } from '../../types/downloads';
+import { readJsonPersistence, writeJsonPersistence } from '../storage/json-persistence';
 
-const DOWNLOADS_DIR = `${FileSystem.documentDirectory}downloads`;
+const DOWNLOADS_DIR = Platform.OS === 'web' ? 'downloads' : `${FileSystem.documentDirectory}downloads`;
 const REGISTRY_PATH = `${DOWNLOADS_DIR}/registry.json`;
-
-async function ensureDownloadsDir() {
-  const info = await FileSystem.getInfoAsync(DOWNLOADS_DIR);
-  if (!info.exists) {
-    await FileSystem.makeDirectoryAsync(DOWNLOADS_DIR, { intermediates: true });
-  }
-}
+const DOWNLOAD_REGISTRY_WEB_KEY = 'tesotunes.downloads.registry';
 
 export async function loadDownloadRegistry(): Promise<DownloadRecord[]> {
-  await ensureDownloadsDir();
-  const info = await FileSystem.getInfoAsync(REGISTRY_PATH);
-
-  if (!info.exists) {
-    return [];
-  }
-
-  const content = await FileSystem.readAsStringAsync(REGISTRY_PATH);
+  const content = await readJsonPersistence<DownloadRecord[]>({
+    webKey: DOWNLOAD_REGISTRY_WEB_KEY,
+    filePath: REGISTRY_PATH,
+    directoryPath: DOWNLOADS_DIR,
+    fallback: [],
+  });
 
   try {
-    return (JSON.parse(content) as DownloadRecord[]).map((download) => ({
+    return content.map((download) => ({
       ...download,
       status: download.status ?? 'completed',
       progress: typeof download.progress === 'number' ? download.progress : download.status === 'completed' ? 1 : 0,
@@ -36,8 +30,15 @@ export async function loadDownloadRegistry(): Promise<DownloadRecord[]> {
 }
 
 export async function saveDownloadRegistry(downloads: DownloadRecord[]) {
-  await ensureDownloadsDir();
-  await FileSystem.writeAsStringAsync(REGISTRY_PATH, JSON.stringify(downloads));
+  await writeJsonPersistence<DownloadRecord[]>(
+    {
+      webKey: DOWNLOAD_REGISTRY_WEB_KEY,
+      filePath: REGISTRY_PATH,
+      directoryPath: DOWNLOADS_DIR,
+      fallback: [],
+    },
+    downloads
+  );
 }
 
 export function buildDownloadTarget(fileName: string) {
@@ -46,7 +47,15 @@ export function buildDownloadTarget(fileName: string) {
 }
 
 export async function downloadFileToDevice(sourceUrl: string, fileName: string) {
-  await ensureDownloadsDir();
+  if (Platform.OS === 'web') {
+    throw new Error('Offline downloads are not supported on web builds.');
+  }
+
+  const info = await FileSystem.getInfoAsync(DOWNLOADS_DIR);
+  if (!info.exists) {
+    await FileSystem.makeDirectoryAsync(DOWNLOADS_DIR, { intermediates: true });
+  }
+
   const target = buildDownloadTarget(fileName);
   const result = await FileSystem.downloadAsync(sourceUrl, target);
 

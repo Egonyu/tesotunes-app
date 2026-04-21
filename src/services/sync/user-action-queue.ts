@@ -1,9 +1,11 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
 import { apiPost } from '../api/client';
+import { readJsonPersistence, writeJsonPersistence } from '../storage/json-persistence';
 
 const SYNC_DIR = `${FileSystem.documentDirectory}sync`;
 const USER_ACTION_QUEUE_PATH = `${SYNC_DIR}/user-actions.json`;
+const USER_ACTIONS_WEB_KEY = 'tesotunes.sync.user-actions';
 
 type QueuedLikeAction = {
   id: string;
@@ -33,34 +35,25 @@ type UserActionSyncResponse = {
   };
 };
 
-async function ensureSyncDir() {
-  const info = await FileSystem.getInfoAsync(SYNC_DIR);
-
-  if (!info.exists) {
-    await FileSystem.makeDirectoryAsync(SYNC_DIR, { intermediates: true });
-  }
-}
-
 export async function loadQueuedUserActions(): Promise<QueuedUserAction[]> {
-  await ensureSyncDir();
-  const info = await FileSystem.getInfoAsync(USER_ACTION_QUEUE_PATH);
-
-  if (!info.exists) {
-    return [];
-  }
-
-  const content = await FileSystem.readAsStringAsync(USER_ACTION_QUEUE_PATH);
-
-  try {
-    return JSON.parse(content) as QueuedUserAction[];
-  } catch {
-    return [];
-  }
+  return readJsonPersistence<QueuedUserAction[]>({
+    webKey: USER_ACTIONS_WEB_KEY,
+    filePath: USER_ACTION_QUEUE_PATH,
+    directoryPath: SYNC_DIR,
+    fallback: [],
+  });
 }
 
 async function saveQueuedUserActions(actions: QueuedUserAction[]) {
-  await ensureSyncDir();
-  await FileSystem.writeAsStringAsync(USER_ACTION_QUEUE_PATH, JSON.stringify(actions));
+  await writeJsonPersistence<QueuedUserAction[]>(
+    {
+      webKey: USER_ACTIONS_WEB_KEY,
+      filePath: USER_ACTION_QUEUE_PATH,
+      directoryPath: SYNC_DIR,
+      fallback: [],
+    },
+    actions
+  );
 }
 
 function dedupeActions(actions: QueuedUserAction[]) {

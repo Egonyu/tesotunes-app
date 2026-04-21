@@ -1,11 +1,13 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useDownloadTrack, usePauseDownload } from '../hooks/use-downloads';
 import { useTrackLikeStatus, useToggleTrackLike } from '../hooks/use-track-likes';
 import { useAddToQueue } from '../hooks/use-player-queue';
+import { ensureRemotePlaybackTrack } from '../services/api/playback';
 import { resolveQueuePlayback, resolveTrackPlayback } from '../services/downloads/playback';
 import { useAuthStore } from '../store/auth-store';
 import { useDownloadStore } from '../store/download-store';
@@ -76,34 +78,40 @@ export function ArtistCard({ artist }: { artist: Artist }) {
 
 export function TrackRow({ track, queue }: { track: Track; queue: Track[] }) {
   const playTrack = usePlayerStore((state) => state.playTrack);
+  const setPlaybackError = usePlayerStore((state) => state.setPlaybackError);
   const isAuthenticated = useAuthStore((state) => state.status === 'authenticated');
+  const token = useAuthStore((state) => state.token);
   const addToQueue = useAddToQueue();
   const downloadTrack = useDownloadTrack();
   const pauseDownload = usePauseDownload();
-  const downloads = useDownloadStore((state) => state.downloads);
   const likeStatus = useTrackLikeStatus(track);
   const toggleLike = useToggleTrackLike(track);
   const canQueue = isAuthenticated && typeof track.sourceId === 'number';
   const canDownload = isAuthenticated && typeof track.sourceId === 'number';
   const canLike = isAuthenticated && typeof track.sourceId === 'number';
-  const downloadRecord = downloads.find((item) =>
-    typeof track.sourceId === 'number' && typeof item.track.sourceId === 'number'
-      ? item.track.sourceId === track.sourceId
-      : item.track.id === track.id
+  const downloadRecord = useDownloadStore((state) =>
+    state.downloads.find((item) =>
+      typeof track.sourceId === 'number' && typeof item.track.sourceId === 'number'
+        ? item.track.sourceId === track.sourceId
+        : item.track.id === track.id
+    )
   );
   const isDownloaded = downloadRecord?.status === 'completed';
   const isDownloading = downloadRecord?.status === 'downloading';
   const canResumeDownload = downloadRecord?.status === 'paused' || downloadRecord?.status === 'failed';
-  const resolvedTrack = resolveTrackPlayback(track, downloads);
-  const resolvedQueue = resolveQueuePlayback(queue, downloads);
+  const [isPreparingPlayback, setIsPreparingPlayback] = useState(false);
 
   async function handleDownloadPress() {
-    if (isDownloading && downloadRecord) {
-      await pauseDownload.mutateAsync(downloadRecord);
-      return;
-    }
+    try {
+      if (isDownloading && downloadRecord) {
+        await pauseDownload.mutateAsync(downloadRecord);
+        return;
+      }
 
-    await downloadTrack.mutateAsync(track);
+      await downloadTrack.mutateAsync(track);
+    } catch {
+      // Download mutations already manage their own state; avoid uncaught press-handler rejections.
+    }
   }
 
   function downloadIconName() {
@@ -138,8 +146,43 @@ export function TrackRow({ track, queue }: { track: Track; queue: Track[] }) {
     return colors.textMuted;
   }
 
+  async function handlePlayPress() {
+    if (isPreparingPlayback) {
+      return;
+    }
+
+    const downloads = useDownloadStore.getState().downloads;
+    const resolvedTrack = resolveTrackPlayback(track, downloads);
+    const resolvedQueue = resolveQueuePlayback(queue, downloads);
+
+    if (resolvedTrack.playbackSource === 'offline' || resolvedTrack.playbackUri) {
+      setPlaybackError(null);
+      playTrack(resolvedTrack, resolvedQueue);
+      return;
+    }
+
+    if (!resolvedTrack.sourceId) {
+      setPlaybackError('This track does not have a playable audio source yet.');
+      return;
+    }
+
+    setIsPreparingPlayback(true);
+    setPlaybackError('Resolving playable source...');
+
+    try {
+      const playableTrack = await ensureRemotePlaybackTrack(resolvedTrack, token ?? undefined);
+      const nextQueue = resolvedQueue.map((queueTrack) => (queueTrack.id === resolvedTrack.id ? playableTrack : queueTrack));
+      setPlaybackError(null);
+      playTrack(playableTrack, nextQueue);
+    } catch {
+      setPlaybackError('This track does not have a playable audio source yet.');
+    } finally {
+      setIsPreparingPlayback(false);
+    }
+  }
+
   return (
-    <TouchableOpacity activeOpacity={0.9} style={styles.trackRow} onPress={() => playTrack(resolvedTrack, resolvedQueue)}>
+    <TouchableOpacity activeOpacity={0.9} style={styles.trackRow} onPress={() => void handlePlayPress()}>
       <ArtworkImage uri={track.artworkUrl} palette={track.palette} style={styles.trackArt} />
       <View style={styles.trackMeta}>
         <Text style={styles.trackTitle} numberOfLines={1}>
@@ -149,6 +192,7 @@ export function TrackRow({ track, queue }: { track: Track; queue: Track[] }) {
           <Text style={styles.trackSubtitle} numberOfLines={1}>
             {track.artist} • {track.plays}
           </Text>
+          {isPreparingPlayback ? <Text style={styles.pendingBadge}>Loading</Text> : null}
           {isDownloaded ? <Text style={styles.offlineBadge}>Offline</Text> : null}
           {isDownloading ? <Text style={styles.pendingBadge}>{Math.round((downloadRecord?.progress ?? 0) * 100)}%</Text> : null}
           {downloadRecord?.status === 'failed' ? <Text style={styles.failedBadge}>Retry</Text> : null}
@@ -156,7 +200,7 @@ export function TrackRow({ track, queue }: { track: Track; queue: Track[] }) {
       </View>
       <View style={styles.actions}>
         {canLike ? (
-          <TouchableOpacity onPress={() => void toggleLike.mutateAsync()} hitSlop={10} style={styles.queueButton}>
+          <TouchableOpacity onPress={() => toggleLike.mutate()} hitSlop={10} style={styles.queueButton}>
             <Ionicons
               name={likeStatus.data ? 'heart' : 'heart-outline'}
               size={20}
@@ -188,7 +232,7 @@ export function TrackRow({ track, queue }: { track: Track; queue: Track[] }) {
         ) : null}
         {canQueue ? (
           <TouchableOpacity
-            onPress={() => void addToQueue.mutateAsync(track.sourceId!)}
+            onPress={() => addToQueue.mutate(track.sourceId!)}
             hitSlop={10}
             style={styles.queueButton}
           >
@@ -228,14 +272,30 @@ export function SearchTile({
 
 export function ChartCard({ chart, onPress }: { chart: Chart; onPress?: () => void }) {
   return (
-    <TouchableOpacity activeOpacity={0.85} style={styles.card} onPress={onPress}>
+    <TouchableOpacity activeOpacity={0.85} style={styles.chartCard} onPress={onPress}>
       <ArtworkImage uri={chart.artworkUrl} palette={chart.palette} style={styles.coverArt} />
-      <Text style={styles.cardTitle} numberOfLines={2}>
-        {chart.title}
-      </Text>
-      <Text style={styles.cardMeta} numberOfLines={2}>
-        {chart.genre} • {chart.totalPlays}
-      </Text>
+      <View style={styles.chartMetaBlock}>
+        <View style={styles.chartBadgeRow}>
+          <View style={styles.chartBadge}>
+            <Text style={styles.chartBadgeLabel}>{chart.genre}</Text>
+          </View>
+          {chart.momentumLabel ? (
+            <View style={styles.chartBadgeMuted}>
+              <Text style={styles.chartBadgeMutedLabel}>{chart.momentumLabel}</Text>
+            </View>
+          ) : null}
+        </View>
+        <Text style={styles.cardTitle} numberOfLines={2}>
+          {chart.title}
+        </Text>
+        <Text style={styles.cardMeta} numberOfLines={1}>
+          {chart.songCount} tracks
+        </Text>
+        <Text style={styles.cardMeta} numberOfLines={2}>
+          {chart.totalPlays}
+          {chart.averagePlaysLabel ? ` • ${chart.averagePlaysLabel}` : ''}
+        </Text>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -298,10 +358,45 @@ const styles = StyleSheet.create({
     width: 150,
     gap: 10,
   },
+  chartCard: {
+    width: 164,
+    gap: 10,
+  },
   coverArt: {
     width: 150,
     height: 150,
     borderRadius: 10,
+  },
+  chartMetaBlock: {
+    gap: 6,
+  },
+  chartBadgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  chartBadge: {
+    borderRadius: 999,
+    backgroundColor: 'rgba(244,63,127,0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  chartBadgeLabel: {
+    color: '#f472b6',
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  chartBadgeMuted: {
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  chartBadgeMutedLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: '800',
   },
   artistArt: {
     width: 150,

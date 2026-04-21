@@ -68,6 +68,8 @@ export type Chart = {
   description: string;
   songCount: number;
   totalPlays: string;
+  momentumLabel?: string;
+  averagePlaysLabel?: string;
   palette: ArtworkPalette;
   slug?: string;
   artworkUrl?: string | null;
