@@ -1,0 +1,10 @@
+when:
+  - event: push
+    branch: main
+
+steps:
+  typecheck:
+    image: node:22-alpine
+    commands:
+      - npm ci --prefer-offline
+      - npx tsc --noEmit
