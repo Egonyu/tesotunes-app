@@ -1,6 +1,8 @@
 import { clearAuthToken, readAuthToken, saveAuthToken } from './token-storage';
-import { apiGet, apiPost } from '../api/client';
+import { apiGet, apiPost, getApiBaseUrl, setOnRefreshToken, setOnUnauthorized } from '../api/client';
+import { loadLibraryCache } from '../storage/library-cache';
 import { useAuthStore } from '../../store/auth-store';
+import { useLibraryStore } from '../../store/library-store';
 import { AuthPayload, AuthUser, RegistrationPayload } from '../../types/auth';
 
 type AuthResponse = {
@@ -50,6 +52,43 @@ function normalizeUser(input?: UserResponse['data'] | UserResponse | null): Auth
   };
 }
 
+export function registerAuthInterceptor(): void {
+  setOnRefreshToken(async () => {
+    const storedToken = await readAuthToken();
+    if (!storedToken) return null;
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${storedToken}`,
+        },
+      });
+
+      if (!response.ok) return null;
+
+      const data = (await response.json()) as { token?: string };
+      const newToken = data.token;
+      if (!newToken) return null;
+
+      await saveAuthToken(newToken);
+      const store = useAuthStore.getState();
+      if (store.user) {
+        store.setSession({ user: store.user, token: newToken });
+      }
+      return newToken;
+    } catch {
+      return null;
+    }
+  });
+
+  setOnUnauthorized(() => {
+    void clearAuthToken();
+    useAuthStore.getState().clearSession();
+  });
+}
+
 export async function bootstrapSession() {
   const token = await readAuthToken();
   const store = useAuthStore.getState();
@@ -62,11 +101,17 @@ export async function bootstrapSession() {
   store.setStatus('loading');
 
   try {
-    const response = await apiGet<UserResponse>('/auth/user', token);
+    const [response, libraryCache] = await Promise.all([
+      apiGet<UserResponse>('/auth/user', token),
+      loadLibraryCache(),
+    ]);
     store.setSession({
       token,
       user: normalizeUser(response.data ?? response),
     });
+    const { setLikedTrackIds, setFollowedArtistIds } = useLibraryStore.getState();
+    setLikedTrackIds(new Set(libraryCache.likedTrackIds));
+    setFollowedArtistIds(new Set(libraryCache.followedArtistIds));
   } catch {
     await clearAuthToken();
     store.clearSession();
@@ -168,6 +213,11 @@ export async function resendVerificationEmail(email: string) {
   });
 
   return response.message || 'If your account still requires verification, we have sent a fresh verification email.';
+}
+
+export async function forgotPassword(email: string) {
+  const response = await apiPost<{ message?: string }, { email: string }>('/auth/forgot-password', { email });
+  return response.message || 'If that email is registered, a password reset link has been sent.';
 }
 
 export async function verifyEmailLink(input: {

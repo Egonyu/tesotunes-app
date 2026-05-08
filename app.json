@@ -41,6 +41,13 @@
         {
           "enableBackgroundPlayback": true
         }
+      ],
+      "expo-asset",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "TesoTunes uses your photo library to let you set a profile picture."
+        }
       ]
     ],
     "extra": {

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { apiGet, apiPut } from '../services/api/client';
+import { apiGet, apiPostFormData, apiPut } from '../services/api/client';
 import { useAuthStore } from '../store/auth-store';
 import { ApiUserProfile } from '../types/api';
 
@@ -35,6 +35,10 @@ export type UpdateUserProfileInput = {
   bio?: string;
   website?: string;
   phone?: string;
+};
+
+export type AvatarUploadResult = {
+  avatarUrl: string | null;
 };
 
 function unwrapProfile(response: UserProfileResponse): ApiUserProfile {
@@ -102,6 +106,31 @@ export function useUpdateUserProfile() {
     },
     onSuccess: (profile) => {
       updateUser({ name: profile.name, email: profile.email });
+      queryClient.setQueryData(['user-profile'], profile);
+      queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+    },
+  });
+}
+
+export function useUploadAvatar() {
+  const token = useAuthStore((state) => state.token);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (localUri: string) => {
+      if (!token) throw new Error('Sign in to update your avatar.');
+
+      const formData = new FormData();
+      formData.append('avatar', {
+        uri: localUri,
+        name: 'avatar.jpg',
+        type: 'image/jpeg',
+      } as unknown as Blob);
+
+      const response = await apiPostFormData<UserProfileResponse>('/user/avatar', formData, token);
+      return mapUserProfile(response);
+    },
+    onSuccess: (profile) => {
       queryClient.setQueryData(['user-profile'], profile);
       queryClient.invalidateQueries({ queryKey: ['user-profile'] });
     },

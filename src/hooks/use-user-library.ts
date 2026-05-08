@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { apiGet } from '../services/api/client';
 import { mapArtists, mapPlaylists, mapSongs } from '../services/api/mappers';
 import { loadRecentTracks } from '../services/media/recent-tracks';
+import { saveLibraryCache } from '../services/storage/library-cache';
 import { useLibraryStore } from '../store/library-store';
 import { useAuthStore } from '../store/auth-store';
 import { ApiListResponse, ApiPlaylist, MobileArtist, MobileSong } from '../types/api';
@@ -70,8 +71,11 @@ export function useUserLibrary() {
       return;
     }
 
-    setLikedTrackIds(new Set(query.data.likedSongs.map((track) => `source:${track.sourceId ?? track.id}`)));
-    setFollowedArtistIds(new Set(query.data.followedArtists.map((artist) => `source:${artist.sourceId ?? artist.id}`)));
+    const likedIds = query.data.likedSongs.map((track) => `source:${track.sourceId ?? track.id}`);
+    const followedIds = query.data.followedArtists.map((artist) => `source:${artist.sourceId ?? artist.id}`);
+    setLikedTrackIds(new Set(likedIds));
+    setFollowedArtistIds(new Set(followedIds));
+    void saveLibraryCache(likedIds, followedIds);
   }, [isAuthenticated, query.data, setFollowedArtistIds, setLikedTrackIds]);
 
   return query;

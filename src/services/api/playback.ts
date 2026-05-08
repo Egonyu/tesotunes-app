@@ -11,7 +11,7 @@ type StreamUrlResponse = {
 };
 
 export async function fetchTrackStreamUrl(songId: number, token?: string) {
-  const response = await apiGet<StreamUrlResponse>(`/v1/tracks/${songId}/stream-url`, token);
+  const response = await apiGet<StreamUrlResponse>(`/tracks/${songId}/stream-url`, token);
 
   if (!response.url) {
     throw new Error('The API did not return a playable stream URL.');

@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -7,6 +8,7 @@ import { Screen } from '../../src/components/screen';
 import { AlbumCard, TrackRow } from '../../src/components/media';
 import { ArtworkImage } from '../../src/components/artwork-image';
 import { StateMessage } from '../../src/components/state-message';
+import { TipModal } from '../../src/components/tip-modal';
 import { useArtistDetail } from '../../src/hooks/use-artist-detail';
 import { useArtistFollowStatus, useToggleArtistFollow } from '../../src/hooks/use-artist-follow';
 import { useAuthStore } from '../../src/store/auth-store';
@@ -20,6 +22,7 @@ export default function ArtistDetailScreen() {
   const isAuthenticated = useAuthStore((state) => state.status === 'authenticated');
   const followStatus = useArtistFollowStatus(artist ?? undefined);
   const toggleFollow = useToggleArtistFollow(artist ?? undefined);
+  const [tipVisible, setTipVisible] = useState(false);
 
   if (isLoading) {
     return (
@@ -64,22 +67,43 @@ export default function ArtistDetailScreen() {
         </View>
         {artist.city || artist.country ? <Text style={styles.location}>{[artist.city, artist.country].filter(Boolean).join(', ')}</Text> : null}
         {artist.bio ? <Text style={styles.bio}>{artist.bio}</Text> : null}
-        <TouchableOpacity
-          style={[styles.followButton, followStatus.data ? styles.followingButton : null]}
-          onPress={() => toggleFollow.mutate()}
-          disabled={!isAuthenticated || toggleFollow.isPending || !artist.sourceId}
-        >
-          {toggleFollow.isPending ? (
-            <ActivityIndicator color={followStatus.data ? colors.text : colors.background} />
-          ) : (
-            <>
-              <Ionicons name={followStatus.data ? 'checkmark' : 'add'} size={18} color={followStatus.data ? colors.text : colors.background} />
-              <Text style={[styles.followLabel, followStatus.data ? styles.followingLabel : null]}>
-                {followStatus.data ? 'Following' : 'Follow artist'}
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={[styles.followButton, followStatus.data ? styles.followingButton : null]}
+            onPress={() => toggleFollow.mutate()}
+            disabled={!isAuthenticated || toggleFollow.isPending || !artist.sourceId}
+          >
+            {toggleFollow.isPending ? (
+              <ActivityIndicator color={followStatus.data ? colors.text : colors.background} />
+            ) : (
+              <>
+                <Ionicons name={followStatus.data ? 'checkmark' : 'add'} size={18} color={followStatus.data ? colors.text : colors.background} />
+                <Text style={[styles.followLabel, followStatus.data ? styles.followingLabel : null]}>
+                  {followStatus.data ? 'Following' : 'Follow'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.tipButton}
+            onPress={() => isAuthenticated ? setTipVisible(true) : router.push('/sign-in' as never)}
+            activeOpacity={0.86}
+          >
+            <Ionicons name="heart-outline" size={16} color={colors.accent} />
+            <Text style={styles.tipLabel}>Tip</Text>
+          </TouchableOpacity>
+        </View>
+
+        {artist.sourceId ? (
+          <TipModal
+            visible={tipVisible}
+            recipientId={artist.sourceId}
+            recipientType="artist"
+            recipientName={artist.name}
+            onClose={() => setTipVisible(false)}
+          />
+        ) : null}
       </LinearGradient>
 
       <View style={styles.block}>
@@ -157,8 +181,13 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'center',
   },
-  followButton: {
+  actionRow: {
     marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  followButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -166,6 +195,21 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 18,
     paddingVertical: 12,
+  },
+  tipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+  },
+  tipLabel: {
+    color: colors.accent,
+    fontSize: 14,
+    fontWeight: '800',
   },
   followingButton: {
     backgroundColor: colors.surfaceMuted,

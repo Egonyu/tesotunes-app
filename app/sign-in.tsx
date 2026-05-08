@@ -20,7 +20,6 @@ export default function SignInScreen() {
   const [error, setError] = useState<string | null>(null);
   const [verificationPrompt, setVerificationPrompt] = useState<string | null>(null);
   const [resendSubmitting, setResendSubmitting] = useState(false);
-  const [socialSubmitting, setSocialSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(
     params.verified === '1'
       ? 'Email verified successfully. You can sign in now.'
@@ -29,54 +28,11 @@ export default function SignInScreen() {
         : null
   );
 
-  const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    scopes: ['openid', 'profile', 'email'],
-  }, {
-    scheme: 'tesotunes',
-    path: 'sign-in',
-  });
-
   const googleEnabled = Boolean(
     process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ||
       process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ||
       process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
   );
-
-  useEffect(() => {
-    if (googleResponse?.type !== 'success') {
-      return;
-    }
-
-    const accessToken = googleResponse.authentication?.accessToken;
-    const idToken = googleResponse.authentication?.idToken;
-    if (!accessToken && !idToken) {
-      setError('Google sign-in did not return an authentication token.');
-      return;
-    }
-
-    setSocialSubmitting(true);
-    setError(null);
-    setVerificationPrompt(null);
-
-    void signInWithSocial('google', {
-      accessToken,
-      idToken,
-      deviceName: 'expo_google',
-      platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web',
-    })
-      .then(() => {
-        router.replace('/(tabs)/library');
-      })
-      .catch((submissionError) => {
-        setError(submissionError instanceof Error ? submissionError.message : 'Unable to complete Google sign in');
-      })
-      .finally(() => {
-        setSocialSubmitting(false);
-      });
-  }, [googleResponse]);
 
   async function handleSubmit() {
     setSubmitting(true);
@@ -122,17 +78,6 @@ export default function SignInScreen() {
     }
   }
 
-  async function handleGoogleSignIn() {
-    if (!googleEnabled) {
-      setError('Google sign-in is not configured on this build.');
-      return;
-    }
-
-    setError(null);
-    setVerificationPrompt(null);
-    await googlePromptAsync();
-  }
-
   return (
     <Screen contentContainerStyle={styles.screen}>
       <View style={styles.hero}>
@@ -157,7 +102,12 @@ export default function SignInScreen() {
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>Password</Text>
+          <View style={styles.labelRow}>
+            <Text style={styles.label}>Password</Text>
+            <TouchableOpacity onPress={() => router.push('/forgot-password')}>
+              <Text style={styles.forgotLink}>Forgot password?</Text>
+            </TouchableOpacity>
+          </View>
           <TextInput
             secureTextEntry
             placeholder="Your password"
@@ -175,18 +125,12 @@ export default function SignInScreen() {
           {submitting ? <ActivityIndicator color={colors.background} /> : <Text style={styles.buttonLabel}>Continue</Text>}
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.secondaryButton}
-          activeOpacity={0.85}
-          onPress={() => void handleGoogleSignIn()}
-          disabled={!googleEnabled || socialSubmitting || !googleRequest}
-        >
-          {socialSubmitting ? (
-            <ActivityIndicator color={colors.text} />
-          ) : (
-            <Text style={styles.secondaryButtonLabel}>Continue with Google</Text>
-          )}
-        </TouchableOpacity>
+        {googleEnabled ? (
+          <GoogleSignInButton
+            onSuccess={() => router.replace('/(tabs)/library')}
+            onError={setError}
+          />
+        ) : null}
 
         {verificationPrompt ? (
           <TouchableOpacity style={styles.secondaryButton} activeOpacity={0.85} onPress={handleResendVerification} disabled={resendSubmitting}>
@@ -199,6 +143,57 @@ export default function SignInScreen() {
         </TouchableOpacity>
       </View>
     </Screen>
+  );
+}
+
+function GoogleSignInButton({ onSuccess, onError }: { onSuccess: () => void; onError: (msg: string) => void }) {
+  const [loading, setLoading] = useState(false);
+
+  const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest(
+    {
+      iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+      androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+      webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+      scopes: ['openid', 'profile', 'email'],
+    },
+    { scheme: 'tesotunes', path: 'sign-in' }
+  );
+
+  useEffect(() => {
+    if (googleResponse?.type !== 'success') return;
+
+    const accessToken = googleResponse.authentication?.accessToken;
+    const idToken = googleResponse.authentication?.idToken;
+    if (!accessToken && !idToken) {
+      onError('Google sign-in did not return an authentication token.');
+      return;
+    }
+
+    setLoading(true);
+    void signInWithSocial('google', {
+      accessToken,
+      idToken,
+      deviceName: 'expo_google',
+      platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web',
+    })
+      .then(onSuccess)
+      .catch((err) => onError(err instanceof Error ? err.message : 'Unable to complete Google sign in'))
+      .finally(() => setLoading(false));
+  }, [googleResponse]);
+
+  return (
+    <TouchableOpacity
+      style={styles.secondaryButton}
+      activeOpacity={0.85}
+      onPress={() => void googlePromptAsync()}
+      disabled={loading || !googleRequest}
+    >
+      {loading ? (
+        <ActivityIndicator color={colors.text} />
+      ) : (
+        <Text style={styles.secondaryButtonLabel}>Continue with Google</Text>
+      )}
+    </TouchableOpacity>
   );
 }
 
@@ -236,6 +231,16 @@ const styles = StyleSheet.create({
   },
   field: {
     gap: 8,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  forgotLink: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: '700',
   },
   label: {
     color: colors.text,

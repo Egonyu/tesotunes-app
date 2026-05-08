@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { EventCard, SectionHeader } from '../../src/components/media';
 import { Screen } from '../../src/components/screen';
@@ -19,7 +20,7 @@ export default function EventsScreen() {
         <SectionHeader title={isLoading ? 'Loading events' : 'Upcoming near you'} action="View all" />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
           {events.map((event) => (
-            <EventCard key={event.id} event={event} />
+            <EventCard key={event.id} event={event} onPress={() => router.push(`/events/${event.id}` as never)} />
           ))}
         </ScrollView>
       </View>
@@ -27,7 +28,7 @@ export default function EventsScreen() {
       <View style={styles.list}>
         <SectionHeader title="This month" />
         {events.map((event) => (
-          <View key={event.id} style={styles.listRow}>
+          <TouchableOpacity key={event.id} style={styles.listRow} activeOpacity={0.82} onPress={() => router.push(`/events/${event.id}` as never)}>
             <View style={styles.dateBadge}>
               <Text style={styles.dateMonth}>{event.dateLabel.split(',')[0]}</Text>
               <Text style={styles.dateDay}>{event.dateLabel.split(' ').at(-1)}</Text>
@@ -38,7 +39,7 @@ export default function EventsScreen() {
                 {event.venue} • {event.city}
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
         ))}
       </View>
     </Screen>

@@ -1,19 +1,25 @@
+import * as ImagePicker from 'expo-image-picker';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { Screen } from '../../src/components/screen';
-import { useUpdateUserProfile, useUserProfile } from '../../src/hooks/use-user-profile';
+import { useUpdateUserProfile, useUploadAvatar, useUserProfile } from '../../src/hooks/use-user-profile';
 import { colors } from '../../src/theme/colors';
 
 export default function EditProfileScreen() {
   const { data: profile, isLoading } = useUserProfile();
   const updateProfile = useUpdateUserProfile();
+  const uploadAvatar = useUploadAvatar();
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [website, setWebsite] = useState('');
   const [phone, setPhone] = useState('');
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
+  const [localAvatarUri, setLocalAvatarUri] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!profile) {
@@ -25,6 +31,27 @@ export default function EditProfileScreen() {
     setWebsite('');
     setPhone('');
   }, [profile]);
+
+  async function handlePickAvatar() {
+    setAvatarError(null);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.85,
+    });
+
+    if (result.canceled || !result.assets[0]) return;
+
+    const uri = result.assets[0].uri;
+    setLocalAvatarUri(uri);
+
+    try {
+      await uploadAvatar.mutateAsync(uri);
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : 'Failed to upload photo.');
+    }
+  }
 
   async function handleSave() {
     setSavedNotice(null);
@@ -39,11 +66,33 @@ export default function EditProfileScreen() {
     setSavedNotice('Profile updated from the live TesoTunes account.');
   }
 
+  const avatarSource = localAvatarUri ?? profile?.avatarUrl ?? null;
+
   return (
     <Screen>
       <View style={styles.header}>
         <Text style={styles.title}>Edit Profile</Text>
         <Text style={styles.subtitle}>Keep your account details current across mobile and web.</Text>
+      </View>
+
+      <View style={styles.avatarSection}>
+        <View style={styles.avatarWrapper}>
+          {avatarSource ? (
+            <Image source={{ uri: avatarSource }} style={styles.avatar} contentFit="cover" />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Ionicons name="person" size={40} color={colors.textSubtle} />
+            </View>
+          )}
+        </View>
+        <TouchableOpacity style={styles.avatarButton} onPress={() => void handlePickAvatar()} disabled={uploadAvatar.isPending}>
+          {uploadAvatar.isPending ? (
+            <ActivityIndicator color={colors.background} size="small" />
+          ) : (
+            <Text style={styles.avatarButtonLabel}>Change Photo</Text>
+          )}
+        </TouchableOpacity>
+        {avatarError ? <Text style={styles.error}>{avatarError}</Text> : null}
       </View>
 
       {isLoading ? <ActivityIndicator color={colors.accent} /> : null}
@@ -108,6 +157,40 @@ export default function EditProfileScreen() {
 const styles = StyleSheet.create({
   header: {
     gap: 8,
+  },
+  avatarSection: {
+    alignItems: 'center',
+    gap: 12,
+  },
+  avatarWrapper: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    overflow: 'hidden',
+    backgroundColor: colors.surface,
+  },
+  avatar: {
+    width: 96,
+    height: 96,
+  },
+  avatarPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceElevated,
+  },
+  avatarButton: {
+    backgroundColor: colors.text,
+    borderRadius: 999,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    minWidth: 120,
+    alignItems: 'center',
+  },
+  avatarButtonLabel: {
+    color: colors.background,
+    fontSize: 13,
+    fontWeight: '800',
   },
   title: {
     color: colors.text,

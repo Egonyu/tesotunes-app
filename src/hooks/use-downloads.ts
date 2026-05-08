@@ -1,5 +1,7 @@
+import * as FileSystem from 'expo-file-system/legacy';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 
 import { ApiError, apiGet } from '../services/api/client';
 import { fetchTrackStreamUrl } from '../services/api/playback';
@@ -190,6 +192,26 @@ export function usePauseDownload() {
       syncDownloadToStore(pausedRecord);
       await persistFromStore();
       return pausedRecord;
+    },
+  });
+}
+
+export function useDeleteDownload() {
+  return useMutation({
+    mutationFn: async (download: DownloadRecord) => {
+      if (Platform.OS !== 'web' && download.localUri) {
+        try {
+          const info = await FileSystem.getInfoAsync(download.localUri);
+          if (info.exists) {
+            await FileSystem.deleteAsync(download.localUri, { idempotent: true });
+          }
+        } catch {
+          // Proceed with store removal even if the file delete fails
+        }
+      }
+
+      useDownloadStore.getState().removeDownload(download.id);
+      await persistFromStore();
     },
   });
 }

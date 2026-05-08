@@ -35,11 +35,18 @@ export function AudioPlaybackProvider({ children }: PropsWithChildren) {
   const resolvingTrackRef = useRef<string | null>(null);
   const currentTrack = usePlayerStore((state) => state.currentTrack);
   const isPlaying = usePlayerStore((state) => state.isPlaying);
+  const repeatMode = usePlayerStore((state) => state.repeatMode);
+  const repeatModeRef = useRef(repeatMode);
   const setPlaybackStatus = usePlayerStore((state) => state.setPlaybackStatus);
   const setPlaybackError = usePlayerStore((state) => state.setPlaybackError);
   const setCurrentTrack = usePlayerStore((state) => state.setCurrentTrack);
+  const setIsPlaying = usePlayerStore((state) => state.setIsPlaying);
   const playNext = usePlayerStore((state) => state.playNext);
   const token = useAuthStore((state) => state.token);
+
+  useEffect(() => {
+    repeatModeRef.current = repeatMode;
+  }, [repeatMode]);
   const playbackKey = useMemo(
     () => formatPlaybackKey(currentTrack?.id, currentTrack?.playbackUri),
     [currentTrack?.id, currentTrack?.playbackUri]
@@ -72,7 +79,19 @@ export function AudioPlaybackProvider({ children }: PropsWithChildren) {
       });
 
       if (status.didJustFinish) {
-        playNext();
+        if (repeatModeRef.current === 'one') {
+          void playerRef.current.seekTo(0).then(() => playerRef.current.play());
+        } else if (repeatModeRef.current === 'off') {
+          const { queue, currentTrack: current } = usePlayerStore.getState();
+          const currentIndex = queue.findIndex((t) => t.id === current?.id);
+          if (currentIndex >= queue.length - 1) {
+            setIsPlaying(false);
+          } else {
+            playNext();
+          }
+        } else {
+          playNext();
+        }
       }
     });
 
@@ -81,7 +100,7 @@ export function AudioPlaybackProvider({ children }: PropsWithChildren) {
       statusSubscription.remove();
       player.remove();
     };
-  }, [playNext, setPlaybackError, setPlaybackStatus]);
+  }, [playNext, setIsPlaying, setPlaybackError, setPlaybackStatus]);
 
   useEffect(() => {
     const player = playerRef.current;

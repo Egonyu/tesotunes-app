@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { ApiError, apiDelete, apiGet, apiPost } from '../services/api/client';
+import { apiDelete, apiPost } from '../services/api/client';
 import { enqueueUserAction } from '../services/sync/user-action-queue';
 import { useAuthStore } from '../store/auth-store';
 import { useLibraryStore } from '../store/library-store';
@@ -52,19 +52,11 @@ export function useToggleArtistFollow(artist?: Artist) {
 
       try {
         if (followStatus.data) {
-          return await apiDelete<FollowResponse>(`/v1/artists/${artist.sourceId}/follow`, token);
+          return await apiDelete<FollowResponse>(`/artists/${artist.sourceId}/follow`, token);
         }
 
-        return await apiPost<FollowResponse>(`/v1/artists/${artist.sourceId}/follow`, {}, token);
+        return await apiPost<FollowResponse>(`/artists/${artist.sourceId}/follow`, {}, token);
       } catch (error) {
-        if (error instanceof ApiError && error.status === 404) {
-          if (followStatus.data) {
-            return await apiDelete<FollowResponse>(`/artists/${artist.sourceId}/follow`, token);
-          }
-
-          return await apiPost<FollowResponse>(`/artists/${artist.sourceId}/follow`, {}, token);
-        }
-
         if (!(error instanceof Error) || !error.message.includes('Network request failed')) {
           throw error;
         }

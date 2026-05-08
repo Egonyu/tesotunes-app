@@ -1,9 +1,14 @@
-const FALLBACK_API_BASE_URL = 'http://127.0.0.1:8000/api';
 import { getRuntimePlatform } from '../platform/runtime-platform';
 import { Platform } from 'react-native';
 
 export function getApiBaseUrl() {
-  return (process.env.EXPO_PUBLIC_API_BASE_URL || FALLBACK_API_BASE_URL).replace(/\/+$/, '');
+  const url = process.env.EXPO_PUBLIC_API_BASE_URL;
+  if (!url) {
+    throw new Error(
+      'EXPO_PUBLIC_API_BASE_URL is not set. Add it to your .env file before running the app.'
+    );
+  }
+  return url.replace(/\/+$/, '');
 }
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -55,7 +60,21 @@ async function buildApiError(response: Response) {
   return new ApiError(fallbackMessage, { status: response.status });
 }
 
-async function request<T>(method: HttpMethod, path: string, token?: string, body?: unknown): Promise<T> {
+type UnauthorizedHandler = () => void;
+type RefreshHandler = () => Promise<string | null>;
+
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+let refreshHandler: RefreshHandler | null = null;
+
+export function setOnUnauthorized(handler: UnauthorizedHandler): void {
+  unauthorizedHandler = handler;
+}
+
+export function setOnRefreshToken(handler: RefreshHandler): void {
+  refreshHandler = handler;
+}
+
+async function request<T>(method: HttpMethod, path: string, token?: string, body?: unknown, isRetry = false): Promise<T> {
   const url = `${getApiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`;
   let response: Response;
 
@@ -73,6 +92,17 @@ async function request<T>(method: HttpMethod, path: string, token?: string, body
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown network error';
     throw new Error(`Network request failed for ${method} ${url}: ${message}`);
+  }
+
+  if (response.status === 401) {
+    if (!isRetry && token && refreshHandler) {
+      const newToken = await refreshHandler();
+      if (newToken) {
+        return request<T>(method, path, newToken, body, true);
+      }
+    }
+    unauthorizedHandler?.();
+    throw new ApiError('Session expired. Please sign in again.', { status: 401, code: 'UNAUTHORIZED' });
   }
 
   if (!response.ok) {
@@ -96,4 +126,30 @@ export async function apiPut<T, B = unknown>(path: string, body?: B, token?: str
 
 export async function apiDelete<T>(path: string, token?: string): Promise<T> {
   return request<T>('DELETE', path, token);
+}
+
+export async function apiPostFormData<T>(path: string, formData: FormData, token?: string): Promise<T> {
+  const url = `${getApiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`;
+  let response: Response;
+
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        ...(Platform.OS === 'web' ? {} : { 'x-expo-platform': getRuntimePlatform() }),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown network error';
+    throw new Error(`Network request failed for POST ${url}: ${message}`);
+  }
+
+  if (!response.ok) {
+    throw await buildApiError(response);
+  }
+
+  return response.json() as Promise<T>;
 }

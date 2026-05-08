@@ -8,6 +8,7 @@ type DownloadState = {
   setDownloads: (downloads: DownloadRecord[]) => void;
   addDownload: (download: DownloadRecord) => void;
   updateDownload: (id: string, updater: Partial<DownloadRecord> | ((download: DownloadRecord) => DownloadRecord)) => void;
+  removeDownload: (id: string) => void;
 };
 
 export const useDownloadStore = create<DownloadState>((set) => ({
@@ -28,5 +29,9 @@ export const useDownloadStore = create<DownloadState>((set) => ({
 
         return typeof updater === 'function' ? updater(item) : { ...item, ...updater };
       }),
+    })),
+  removeDownload: (id) =>
+    set((state) => ({
+      downloads: state.downloads.filter((item) => item.id !== id),
     })),
 }));

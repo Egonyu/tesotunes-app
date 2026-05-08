@@ -15,6 +15,7 @@ import { Album, Artist, Chart, EventItem, Genre, Track } from '../types/music';
 import { colors } from '../theme/colors';
 import { usePlayerStore } from '../store/player-store';
 import { ArtworkImage } from './artwork-image';
+import { PurchaseModal } from './purchase-modal';
 
 export function SectionHeader({
   title,
@@ -100,6 +101,8 @@ export function TrackRow({ track, queue }: { track: Track; queue: Track[] }) {
   const isDownloading = downloadRecord?.status === 'downloading';
   const canResumeDownload = downloadRecord?.status === 'paused' || downloadRecord?.status === 'failed';
   const [isPreparingPlayback, setIsPreparingPlayback] = useState(false);
+  const [purchaseVisible, setPurchaseVisible] = useState(false);
+  const showPurchase = track.isPurchasable && !track.isPurchased && isAuthenticated;
 
   async function handleDownloadPress() {
     try {
@@ -199,6 +202,23 @@ export function TrackRow({ track, queue }: { track: Track; queue: Track[] }) {
         </View>
       </View>
       <View style={styles.actions}>
+        {showPurchase ? (
+          <TouchableOpacity
+            onPress={() => setPurchaseVisible(true)}
+            hitSlop={10}
+            style={styles.purchaseButton}
+          >
+            <Ionicons name="cart-outline" size={13} color="#07110d" />
+            <Text style={styles.purchaseButtonLabel}>
+              {track.priceUgx ? `UGX ${track.priceUgx.toLocaleString()}` : track.priceCredits ? `${track.priceCredits}cr` : 'Buy'}
+            </Text>
+          </TouchableOpacity>
+        ) : track.isPurchased ? (
+          <View style={styles.purchasedBadge}>
+            <Ionicons name="checkmark" size={11} color={colors.accent} />
+            <Text style={styles.purchasedBadgeLabel}>Owned</Text>
+          </View>
+        ) : null}
         {canLike ? (
           <TouchableOpacity onPress={() => toggleLike.mutate()} hitSlop={10} style={styles.queueButton}>
             <Ionicons
@@ -246,6 +266,19 @@ export function TrackRow({ track, queue }: { track: Track; queue: Track[] }) {
           <Ionicons name="ellipsis-horizontal" size={18} color={colors.textMuted} />
         )}
       </View>
+
+      {track.sourceId ? (
+        <PurchaseModal
+          visible={purchaseVisible}
+          songId={track.sourceId}
+          songTitle={track.title}
+          artistName={track.artist}
+          priceUgx={track.priceUgx}
+          priceCredits={track.priceCredits}
+          onClose={() => setPurchaseVisible(false)}
+          onSuccess={() => setPurchaseVisible(false)}
+        />
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -304,9 +337,9 @@ export function GenreCard({ genre, onPress }: { genre: Genre; onPress?: () => vo
   return <SearchTile label={genre.name} subtitle={`${genre.songCount} songs`} palette={genre.palette} onPress={onPress} />;
 }
 
-export function EventCard({ event }: { event: EventItem }) {
+export function EventCard({ event, onPress }: { event: EventItem; onPress?: () => void }) {
   return (
-    <TouchableOpacity activeOpacity={0.85} style={styles.eventCard}>
+    <TouchableOpacity activeOpacity={0.85} style={styles.eventCard} onPress={onPress}>
       <LinearGradient colors={event.palette} style={styles.eventBanner}>
         <Text style={styles.eventDate}>{event.dateLabel}</Text>
       </LinearGradient>
@@ -466,6 +499,35 @@ const styles = StyleSheet.create({
   },
   queueButton: {
     padding: 2,
+  },
+  purchaseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.accent,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  purchaseButtonLabel: {
+    color: '#07110d',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  purchasedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+  },
+  purchasedBadgeLabel: {
+    color: colors.accent,
+    fontSize: 10,
+    fontWeight: '800',
   },
   searchTile: {
     width: '48%',

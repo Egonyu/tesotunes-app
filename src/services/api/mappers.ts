@@ -1,4 +1,3 @@
-import { albums as fallbackAlbums, artists as fallbackArtists, events as fallbackEvents, featuredTracks, playlists as fallbackPlaylists } from '../../data/mock-content';
 import { Album, Artist, Chart, EventItem, Genre, Playlist, Track } from '../../types/music';
 import { ApiListResponse, ApiPlaylist, MobileAlbum, MobileArtist, MobileChart, MobileGenre, MobileSong, PublicEvent, QueueItem, QueueSong } from '../../types/api';
 
@@ -79,9 +78,9 @@ function getArtistId(artist?: MobileSong['artist'] | QueueSong['artist'], artist
   return undefined;
 }
 
-export function mapSongs(response?: ApiListResponse<MobileSong>, options?: { fallback?: boolean }): Track[] {
+export function mapSongs(response?: ApiListResponse<MobileSong>): Track[] {
   const items = listFromResponse(response);
-  if (items.length === 0) return options?.fallback ? featuredTracks : [];
+  if (items.length === 0) return [];
 
   return items.map((song, index) => ({
     id: String(song.id ?? song.slug ?? `track-${index}`),
@@ -96,7 +95,12 @@ export function mapSongs(response?: ApiListResponse<MobileSong>, options?: { fal
     artistId: getArtistId(song.artist, song.artist_id),
     artworkUrl: song.artwork_url ?? song.artwork ?? null,
     playbackUri: song.audio_url ?? song.stream_url ?? null,
+    previewUri: song.preview_url ?? null,
     playbackSource: 'remote',
+    priceUgx: song.price_ugx ?? song.price ?? null,
+    priceCredits: song.price_credits ?? null,
+    isPurchasable: song.is_purchasable ?? false,
+    isPurchased: song.is_purchased ?? false,
   }));
 }
 
@@ -115,8 +119,9 @@ export function mapQueueSong(song: QueueSong, index: number, options?: { queueIt
     albumId: song.album?.id ? String(song.album.id) : undefined,
     artistId: getArtistId(song.artist, song.artist_id),
     artworkUrl: song.artwork_url ?? song.artwork ?? null,
-    playbackUri: song.audio_url ?? null,
-    playbackSource: song.audio_url ? 'remote' : 'remote',
+    playbackUri: song.audio_url ?? song.stream_url ?? null,
+    previewUri: song.preview_url ?? null,
+    playbackSource: 'remote',
   };
 }
 
@@ -142,9 +147,9 @@ export function mapQueue(items?: QueueItem[]) {
   return { queue, currentTrack };
 }
 
-export function mapArtists(response?: ApiListResponse<MobileArtist>, options?: { fallback?: boolean }): Artist[] {
+export function mapArtists(response?: ApiListResponse<MobileArtist>): Artist[] {
   const items = listFromResponse(response);
-  if (items.length === 0) return options?.fallback ? fallbackArtists : [];
+  if (items.length === 0) return [];
 
   return items.map((artist, index) => ({
     id: String(artist.id ?? `artist-${index}`),
@@ -186,9 +191,9 @@ export function mapAlbum(resource?: MobileAlbum | { data?: MobileAlbum } | null)
   };
 }
 
-export function mapAlbums(response?: ApiListResponse<MobileAlbum>, options?: { fallback?: boolean }): Album[] {
+export function mapAlbums(response?: ApiListResponse<MobileAlbum>): Album[] {
   const items = listFromResponse(response);
-  if (items.length === 0) return options?.fallback ? fallbackAlbums : [];
+  if (items.length === 0) return [];
 
   return items
     .map((album, index) => {
@@ -246,7 +251,7 @@ export function mapCharts(response?: ApiListResponse<MobileChart>): Chart[] {
 
 export function mapEvents(response?: ApiListResponse<PublicEvent>): EventItem[] {
   const items = listFromResponse(response);
-  if (items.length === 0) return fallbackEvents;
+  if (items.length === 0) return [];
 
   return items.map((event, index) => ({
     id: String(event.id ?? `event-${index}`),
@@ -255,12 +260,18 @@ export function mapEvents(response?: ApiListResponse<PublicEvent>): EventItem[] 
     dateLabel: formatDateLabel(event.starts_at || event.start_date),
     city: event.city || 'Uganda',
     palette: pickPalette(index + 2),
+    description: event.description ?? undefined,
+    imageUrl: event.image_url ?? null,
+    ticketUrl: event.ticket_url ?? null,
+    price: event.price ?? undefined,
+    category: event.category ?? undefined,
+    startTime: event.starts_at ?? event.start_date ?? undefined,
   }));
 }
 
-export function mapPlaylists(response?: ApiListResponse<ApiPlaylist>, options?: { fallback?: boolean }): Playlist[] {
+export function mapPlaylists(response?: ApiListResponse<ApiPlaylist>): Playlist[] {
   const items = listFromResponse(response);
-  if (items.length === 0) return options?.fallback ? fallbackPlaylists : [];
+  if (items.length === 0) return [];
 
   return items.map((playlist, index) => ({
     id: String(playlist.id ?? `playlist-${index}`),

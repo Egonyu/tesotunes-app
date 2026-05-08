@@ -1,6 +1,7 @@
 import Slider from '@react-native-community/slider';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -8,8 +9,10 @@ import { usePlayerControls, usePlayerQueueSync, useQueueManagement } from '../sr
 import { useTrackLikeStatus, useToggleTrackLike } from '../src/hooks/use-track-likes';
 import { Screen } from '../src/components/screen';
 import { ArtworkImage } from '../src/components/artwork-image';
+import { TipModal } from '../src/components/tip-modal';
 import { colors } from '../src/theme/colors';
 import { usePlayerStore } from '../src/store/player-store';
+import { useAuthStore } from '../src/store/auth-store';
 
 function formatTime(seconds: number) {
   const safeSeconds = Math.max(0, Math.floor(seconds));
@@ -55,6 +58,10 @@ export default function PlayerScreen() {
   const durationSeconds = usePlayerStore((state) => state.durationSeconds);
   const isBuffering = usePlayerStore((state) => state.isBuffering);
   const playbackError = usePlayerStore((state) => state.playbackError);
+  const repeatMode = usePlayerStore((state) => state.repeatMode);
+  const toggleRepeat = usePlayerStore((state) => state.toggleRepeat);
+  const isAuthenticated = useAuthStore((state) => state.status === 'authenticated');
+  const [tipVisible, setTipVisible] = useState(false);
   const { togglePlayback, next, previous, seekTo, controlsLoading } = usePlayerControls();
   const queueQuery = usePlayerQueueSync();
   const { clearQueue, shuffleQueue, removeFromQueue, reorderQueue, queueActionLoading } = useQueueManagement();
@@ -170,15 +177,30 @@ export default function PlayerScreen() {
 
         <ArtworkImage uri={currentTrack.artworkUrl} palette={currentTrack.palette} style={styles.artwork} />
         <View style={styles.meta}>
-          <View>
+          <View style={styles.metaText}>
             <Text style={styles.title}>{currentTrack.title}</Text>
             <Text style={styles.artist}>{currentTrack.artist}</Text>
             {currentTrack.playbackSource === 'offline' ? <Text style={styles.offlineLabel}>Playing from downloads</Text> : null}
           </View>
-          <TouchableOpacity onPress={() => toggleLike.mutate()} disabled={!currentTrack.sourceId}>
-            <Ionicons name={likeStatus.data ? 'heart' : 'heart-outline'} size={24} color={likeStatus.data ? colors.accent : colors.textMuted} />
-          </TouchableOpacity>
+          <View style={styles.metaActions}>
+            <TouchableOpacity onPress={() => (isAuthenticated ? setTipVisible(true) : router.push('/sign-in'))} hitSlop={8}>
+              <Ionicons name="gift-outline" size={22} color={colors.textMuted} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => toggleLike.mutate()} disabled={!currentTrack.sourceId} hitSlop={8}>
+              <Ionicons name={likeStatus.data ? 'heart' : 'heart-outline'} size={24} color={likeStatus.data ? colors.accent : colors.textMuted} />
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {currentTrack.sourceId ? (
+          <TipModal
+            visible={tipVisible}
+            recipientId={currentTrack.sourceId}
+            recipientType="song"
+            recipientName={currentTrack.title}
+            onClose={() => setTipVisible(false)}
+          />
+        ) : null}
 
         <View style={styles.statusRow}>
           <StatusChip label={playbackModeLabel} tone={activeTrack.playbackSource === 'offline' ? 'accent' : 'neutral'} />
@@ -223,12 +245,15 @@ export default function PlayerScreen() {
           <TouchableOpacity onPress={next} hitSlop={12} disabled={controlsLoading} style={styles.sideControl}>
             <Ionicons name="play-skip-forward" size={28} color={colors.text} />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.sideControl, styles.sideControlMuted]}
-            onPress={() => clearQueue.mutate()}
-            disabled={queueActionLoading || totalQueueTracks <= 1}
-          >
-            <Ionicons name="trash-outline" size={20} color={totalQueueTracks > 1 ? colors.text : colors.textSubtle} />
+          <TouchableOpacity style={[styles.sideControl, styles.sideControlMuted]} onPress={toggleRepeat}>
+            <View style={styles.repeatContainer}>
+              <Ionicons
+                name={repeatMode === 'off' ? 'repeat-outline' : 'repeat'}
+                size={20}
+                color={repeatMode !== 'off' ? colors.accent : colors.textSubtle}
+              />
+              {repeatMode === 'one' ? <Text style={styles.repeatOneBadge}>1</Text> : null}
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -257,7 +282,15 @@ export default function PlayerScreen() {
                 {remainingDurationSeconds > 0 ? ` • ${formatTime(remainingDurationSeconds)} left` : ''}
               </Text>
             </View>
-            {queueQuery.isLoading || queueActionLoading ? <ActivityIndicator color={colors.textMuted} size="small" /> : null}
+            <View style={styles.queueHeaderRight}>
+              {queueQuery.isLoading || queueActionLoading ? <ActivityIndicator color={colors.textMuted} size="small" /> : null}
+              {totalQueueTracks > 1 && !queueActionLoading ? (
+                <TouchableOpacity style={styles.clearButton} onPress={() => clearQueue.mutate()}>
+                  <Ionicons name="trash-outline" size={14} color={colors.textMuted} />
+                  <Text style={styles.clearLabel}>Clear</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
           <View style={styles.nowPlayingCard}>
             <ArtworkImage uri={activeTrack.artworkUrl} palette={activeTrack.palette} style={styles.nowPlayingArtwork} />
@@ -374,7 +407,17 @@ const styles = StyleSheet.create({
   meta: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  metaText: {
+    flex: 1,
+  },
+  metaActions: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 16,
+    paddingTop: 4,
   },
   title: {
     color: colors.text,
@@ -515,6 +558,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  queueHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  clearButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  clearLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  repeatContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  repeatOneBadge: {
+    position: 'absolute',
+    bottom: -5,
+    right: -6,
+    color: colors.accent,
+    fontSize: 9,
+    fontWeight: '900',
   },
   queueTitle: {
     color: colors.text,

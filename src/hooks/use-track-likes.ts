@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { ApiError, apiGet, apiPost } from '../services/api/client';
+import { apiPost } from '../services/api/client';
 import { enqueueUserAction } from '../services/sync/user-action-queue';
 import { useAuthStore } from '../store/auth-store';
 import { useLibraryStore } from '../store/library-store';
@@ -55,12 +55,8 @@ export function useToggleTrackLike(track?: Track) {
       }
 
       try {
-        return await apiPost<LikeToggleResponse>(`/v1/tracks/${track.sourceId}/like`, {}, token);
+        return await apiPost<LikeToggleResponse>(`/tracks/${track.sourceId}/like`, {}, token);
       } catch (error) {
-        if (error instanceof ApiError && error.status === 404) {
-          return await apiPost<LikeToggleResponse>(`/tracks/${track.sourceId}/like`, {}, token);
-        }
-
         if (!(error instanceof Error) || !error.message.includes('Network request failed')) {
           throw error;
         }

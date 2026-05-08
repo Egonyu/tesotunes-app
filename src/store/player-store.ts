@@ -2,6 +2,8 @@ import { create } from 'zustand';
 
 import { Track } from '../types/music';
 
+export type RepeatMode = 'off' | 'all' | 'one';
+
 type PlayerState = {
   currentTrack: Track | null;
   queue: Track[];
@@ -10,6 +12,7 @@ type PlayerState = {
   durationSeconds: number;
   isBuffering: boolean;
   playbackError: string | null;
+  repeatMode: RepeatMode;
   playTrack: (track: Track, queue?: Track[]) => void;
   replaceQueue: (payload: { currentTrack: Track | null; queue: Track[]; isPlaying?: boolean }) => void;
   setCurrentTrack: (track: Track | null) => void;
@@ -17,6 +20,7 @@ type PlayerState = {
   setPlaybackStatus: (payload: { currentTime?: number; durationSeconds?: number; isBuffering?: boolean }) => void;
   setPlaybackError: (message: string | null) => void;
   togglePlayback: () => void;
+  toggleRepeat: () => void;
   playNext: () => void;
   playPrevious: () => void;
 };
@@ -35,6 +39,8 @@ function previousIndex(queue: Track[], currentTrack: Track | null) {
   return currentIndex - 1;
 }
 
+const REPEAT_CYCLE: RepeatMode[] = ['off', 'all', 'one'];
+
 export const usePlayerStore = create<PlayerState>((set, get) => ({
   currentTrack: null,
   queue: [],
@@ -43,6 +49,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   durationSeconds: 0,
   isBuffering: false,
   playbackError: null,
+  repeatMode: 'off',
   playTrack: (track, queue) =>
     set({
       currentTrack: track,
@@ -71,6 +78,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     })),
   setPlaybackError: (message) => set({ playbackError: message }),
   togglePlayback: () => set((state) => ({ isPlaying: !state.isPlaying })),
+  toggleRepeat: () =>
+    set((state) => ({
+      repeatMode: REPEAT_CYCLE[(REPEAT_CYCLE.indexOf(state.repeatMode) + 1) % REPEAT_CYCLE.length],
+    })),
   playNext: () => {
     const { queue, currentTrack } = get();
     if (queue.length === 0) return;

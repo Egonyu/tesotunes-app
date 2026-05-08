@@ -8,6 +8,7 @@ import { StateMessage } from '../../src/components/state-message';
 import { useMyPlaylists } from '../../src/hooks/use-playlists';
 import { useUserLibrary } from '../../src/hooks/use-user-library';
 import { useUserProfile } from '../../src/hooks/use-user-profile';
+import { useCreditBalance, useWalletBalance } from '../../src/hooks/use-wallet';
 import { signOut } from '../../src/services/auth/session';
 import { useAuthStore } from '../../src/store/auth-store';
 import { colors } from '../../src/theme/colors';
@@ -56,6 +57,8 @@ export default function MoreScreen() {
   const { data: profile, isLoading: isProfileLoading } = useUserProfile();
   const { data: libraryData, isLoading: isLibraryLoading } = useUserLibrary();
   const { data: playlists, isLoading: arePlaylistsLoading } = useMyPlaylists();
+  const { data: walletData } = useWalletBalance();
+  const { data: creditData } = useCreditBalance();
 
   if (!isAuthenticated) {
     return (
@@ -179,6 +182,45 @@ export default function MoreScreen() {
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Wallet</Text>
+          <TouchableOpacity onPress={() => router.push('/wallet' as never)}>
+            <Text style={styles.sectionAction}>Open wallet</Text>
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity style={styles.walletCard} onPress={() => router.push('/wallet' as never)} activeOpacity={0.88}>
+          <View style={styles.walletBalances}>
+            <View style={styles.walletBalanceBlock}>
+              <Text style={styles.walletBalanceLabel}>UGX Balance</Text>
+              <Text style={styles.walletBalanceAmount}>
+                {walletData ? `UGX ${Math.floor(walletData.ugx_balance).toLocaleString()}` : '—'}
+              </Text>
+            </View>
+            <View style={styles.walletDivider} />
+            <View style={styles.walletBalanceBlock}>
+              <View style={styles.walletCreditsRow}>
+                <Ionicons name="star" size={12} color={colors.accent} />
+                <Text style={styles.walletBalanceLabel}>Credits</Text>
+              </View>
+              <Text style={styles.walletCreditsAmount}>
+                {creditData ? creditData.credits_balance.toLocaleString() : '—'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.walletActions}>
+            <TouchableOpacity style={styles.walletActionBtn} onPress={() => router.push('/wallet/topup' as never)} activeOpacity={0.86}>
+              <Ionicons name="add" size={14} color="#07110d" />
+              <Text style={styles.walletActionBtnLabel}>Top Up</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.walletActionBtnGhost} onPress={() => router.push('/wallet/credits' as never)} activeOpacity={0.86}>
+              <Ionicons name="star-outline" size={14} color={colors.accent} />
+              <Text style={styles.walletActionBtnGhostLabel}>Credits</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Profile and session</Text>
         </View>
 
@@ -188,6 +230,30 @@ export default function MoreScreen() {
             <View style={styles.actionCopy}>
               <Text style={styles.actionTitle}>Edit profile</Text>
               <Text style={styles.actionSubtitle}>Update your name and account details from the live API.</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionRow} onPress={() => router.push('/subscription' as never)}>
+          <View style={styles.actionRowLeft}>
+            <Ionicons name="diamond-outline" size={18} color={colors.accent} />
+            <View style={styles.actionCopy}>
+              <Text style={styles.actionTitle}>Subscription</Text>
+              <Text style={styles.actionSubtitle}>
+                {profile?.isPremium ? 'Premium active — manage your plan.' : 'Upgrade for high quality audio and unlimited downloads.'}
+              </Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionRow} onPress={() => router.push('/settings' as never)}>
+          <View style={styles.actionRowLeft}>
+            <Ionicons name="settings-outline" size={18} color={colors.text} />
+            <View style={styles.actionCopy}>
+              <Text style={styles.actionTitle}>Settings</Text>
+              <Text style={styles.actionSubtitle}>Audio quality, account security, and app preferences.</Text>
             </View>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
@@ -424,5 +490,84 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 12,
     lineHeight: 18,
+  },
+  walletCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 16,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  walletBalances: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  walletBalanceBlock: {
+    flex: 1,
+    gap: 4,
+  },
+  walletBalanceLabel: {
+    color: colors.textSubtle,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  walletBalanceAmount: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  walletDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.border,
+  },
+  walletCreditsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  walletCreditsAmount: {
+    color: colors.accent,
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  walletActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  walletActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: colors.accent,
+    borderRadius: 999,
+    paddingVertical: 10,
+  },
+  walletActionBtnLabel: {
+    color: '#07110d',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  walletActionBtnGhost: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    borderRadius: 999,
+    paddingVertical: 10,
+  },
+  walletActionBtnGhostLabel: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

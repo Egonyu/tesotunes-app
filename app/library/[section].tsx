@@ -6,8 +6,10 @@ import { ArtworkImage } from '../../src/components/artwork-image';
 import { TrackRow } from '../../src/components/media';
 import { Screen } from '../../src/components/screen';
 import { StateMessage } from '../../src/components/state-message';
+import { useDeleteDownload } from '../../src/hooks/use-downloads';
 import { useUserLibrary } from '../../src/hooks/use-user-library';
 import { useDownloadStore } from '../../src/store/download-store';
+import { DownloadRecord } from '../../src/types/downloads';
 import { colors } from '../../src/theme/colors';
 
 const SECTION_COPY = {
@@ -37,6 +39,25 @@ type SectionKey = keyof typeof SECTION_COPY;
 
 function isSectionKey(value: string): value is SectionKey {
   return value in SECTION_COPY;
+}
+
+function DownloadedTrackRow({ record }: { record: DownloadRecord }) {
+  const deleteDownload = useDeleteDownload();
+  return (
+    <View style={styles.downloadedRow}>
+      <View style={styles.downloadedTrack}>
+        <TrackRow track={record.track} queue={[record.track]} />
+      </View>
+      <TouchableOpacity
+        style={styles.deleteButton}
+        onPress={() => deleteDownload.mutate(record)}
+        disabled={deleteDownload.isPending}
+        hitSlop={8}
+      >
+        <Ionicons name="trash-outline" size={18} color={deleteDownload.isPending ? colors.textSubtle : colors.danger} />
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 export default function LibrarySectionScreen() {
@@ -103,9 +124,17 @@ export default function LibrarySectionScreen() {
         </View>
       ) : (
         <View style={styles.list}>
-          {trackContent.length ? (
+          {section === 'downloaded' ? (
+            localDownloads.filter((item) => item.status === 'completed').length > 0 ? (
+              localDownloads
+                .filter((item) => item.status === 'completed')
+                .map((record) => <DownloadedTrackRow key={record.id} record={record} />)
+            ) : (
+              <StateMessage title={copy.emptyTitle} body={copy.emptyBody} />
+            )
+          ) : trackContent.length ? (
             trackContent.map((track) => <TrackRow key={`${section}-${track.id}`} track={track} queue={trackContent} />)
-          ) : !isLoading || section === 'downloaded' ? (
+          ) : !isLoading ? (
             <StateMessage title={copy.emptyTitle} body={copy.emptyBody} />
           ) : null}
         </View>
@@ -136,6 +165,20 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: 14,
+  },
+  downloadedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  downloadedTrack: {
+    flex: 1,
+  },
+  deleteButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   artistRow: {
     backgroundColor: colors.surface,
